@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-label="Ceremony hall placeholder">
+  <defs>
+    <linearGradient id="wall" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#eef1f3"/>
+      <stop offset="1" stop-color="#d8d3c9"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#c9bfae"/>
+      <stop offset="1" stop-color="#94856f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="760" fill="#f4f0e8"/>
+  <path d="M0 0h1200v520H0z" fill="url(#wall)"/>
+  <path d="M0 520h1200v240H0z" fill="url(#floor)"/>
+  <path d="M180 130h840v390H180z" fill="#f8f7f3" opacity=".9"/>
+  <path d="M230 178h740v290H230z" fill="#e3dfd6"/>
+  <path d="M270 220h660v210H270z" fill="#f8f6ef"/>
+  <path d="M420 90h360v72H420z" fill="#27364b"/>
+  <path d="M480 106h240v38H480z" fill="#c69b45"/>
+  <path d="M230 520h740l95 240H135z" fill="#8e7d68" opacity=".45"/>
+  <path d="M250 560h700" stroke="#f5efe2" stroke-width="8" opacity=".45"/>
+  <path d="M210 620h780" stroke="#f5efe2" stroke-width="8" opacity=".35"/>
+  <path d="M168 690h864" stroke="#f5efe2" stroke-width="8" opacity=".25"/>
+</svg>

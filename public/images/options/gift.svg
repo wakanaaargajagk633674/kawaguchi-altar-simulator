@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-label="Return gift option">
+  <rect width="360" height="240" fill="#f7f4ef"/>
+  <rect x="70" y="74" width="220" height="126" rx="10" fill="#fffaf0" stroke="#c9a85d" stroke-width="5"/>
+  <path d="M180 74v126M70 112h220" stroke="#25364d" stroke-width="9"/>
+  <path d="M180 74c-52-48-98-20-70 21 24 35 70-21 70-21Zm0 0c52-48 98-20 70 21-24 35-70-21-70-21Z" fill="#fffdf8" stroke="#c9a85d" stroke-width="5"/>
+  <text x="180" y="224" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#25364d">GIFT</text>
+</svg>

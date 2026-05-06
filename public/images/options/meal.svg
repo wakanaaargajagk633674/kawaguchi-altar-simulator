@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-label="Meal option">
+  <rect width="360" height="240" fill="#f8f3ea"/>
+  <rect x="18" y="18" width="324" height="204" rx="18" fill="#fffdf8" stroke="#d9c69f" stroke-width="4"/>
+  <circle cx="180" cy="120" r="70" fill="#f4efe4" stroke="#b99a5d" stroke-width="5"/>
+  <circle cx="180" cy="120" r="46" fill="#fffaf0" stroke="#e5d6b8" stroke-width="3"/>
+  <path d="M120 68v104M132 68v104M240 68c-20 18-20 52 0 70v34" stroke="#25364d" stroke-width="8" stroke-linecap="round"/>
+  <text x="180" y="210" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#25364d">MEAL</text>
+</svg>

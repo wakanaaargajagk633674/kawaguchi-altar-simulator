@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-label="Included altar placeholder">
+  <path d="M130 495h640v58H130z" fill="#26364c"/>
+  <path d="M190 430h520v70H190z" fill="#33465f"/>
+  <path d="M250 340h400v96H250z" fill="#f7f2e7" stroke="#b48a38" stroke-width="10"/>
+  <path d="M323 210h254v142H323z" fill="#ffffff" stroke="#d2b16b" stroke-width="8"/>
+  <path d="M365 245h170v78H365z" fill="#f8efe0"/>
+  <circle cx="210" cy="352" r="58" fill="#f3f0e8"/>
+  <circle cx="690" cy="352" r="58" fill="#f3f0e8"/>
+  <circle cx="270" cy="302" r="42" fill="#e9d6a4"/>
+  <circle cx="630" cy="302" r="42" fill="#e9d6a4"/>
+  <text x="450" y="300" text-anchor="middle" font-family="Arial, sans-serif" font-size="64" font-weight="700" fill="#26364c">PLAN</text>
+</svg>

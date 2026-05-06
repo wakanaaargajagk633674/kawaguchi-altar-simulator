@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-label="Basket option">
+  <rect width="360" height="240" fill="#f8f3ea"/>
+  <path d="M100 112h160l-18 86H118z" fill="#8d6e47" stroke="#5a442c" stroke-width="5"/>
+  <path d="M126 112c0-58 108-58 108 0" fill="none" stroke="#5a442c" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="140" cy="94" r="20" fill="#d7b05e"/>
+  <circle cx="180" cy="82" r="22" fill="#9ebc74"/>
+  <circle cx="220" cy="96" r="20" fill="#d69b72"/>
+  <path d="M116 140h128M122 166h116" stroke="#b9925d" stroke-width="5"/>
+  <text x="180" y="224" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#25364d">BASKET</text>
+</svg>

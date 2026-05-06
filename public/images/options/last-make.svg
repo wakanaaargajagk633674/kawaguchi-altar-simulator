@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">ラストメイクのイメージ</title>
+  <desc id="desc">ラストメイクを表す仮画像</desc>
+  <rect width="640" height="420" fill="#f7f4ee"/>
+  <circle cx="292" cy="188" r="86" fill="#fff3e6" stroke="#c9b37e" stroke-width="8"/>
+  <path d="M254 174c14-10 28-10 42 0M320 174c14-10 28-10 42 0M282 230c28 18 56 18 84 0" fill="none" stroke="#6f5b3d" stroke-width="7" stroke-linecap="round"/>
+  <rect x="382" y="230" width="96" height="34" rx="17" fill="#b75b6a"/>
+  <rect x="436" y="196" width="30" height="92" rx="15" fill="#d4bd83"/>
+  <path d="M186 304h268" stroke="#d9cba8" stroke-width="8" stroke-linecap="round"/>
+  <text x="320" y="386" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" fill="#0f172a">ラストメイク</text>
+</svg>

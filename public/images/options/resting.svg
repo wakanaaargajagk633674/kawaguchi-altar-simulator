@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">安置日数のイメージ</title>
+  <desc id="desc">安置室を表す仮画像</desc>
+  <rect width="640" height="420" fill="#f7f4ee"/>
+  <rect x="92" y="126" width="456" height="190" rx="22" fill="#ffffff" stroke="#b8a36d" stroke-width="8"/>
+  <path d="M138 188h364M138 250h364" stroke="#d9cba8" stroke-width="7" stroke-linecap="round"/>
+  <path d="M210 126v190M320 126v190M430 126v190" stroke="#eee4cf" stroke-width="6"/>
+  <circle cx="320" cy="78" r="26" fill="#b8a36d"/>
+  <text x="320" y="86" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#ffffff">日</text>
+  <text x="320" y="386" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" fill="#0f172a">安置日数</text>
+</svg>

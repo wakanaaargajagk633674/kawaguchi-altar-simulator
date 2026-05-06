@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">ドライアイスのイメージ</title>
+  <desc id="desc">保冷を表す仮画像</desc>
+  <rect width="640" height="420" fill="#f7f4ee"/>
+  <rect x="180" y="108" width="280" height="190" rx="24" fill="#ffffff" stroke="#7ea6c8" stroke-width="8"/>
+  <path d="M252 166l136 74M388 166l-136 74M320 134v156" stroke="#7ea6c8" stroke-width="10" stroke-linecap="round"/>
+  <path d="M142 318c34-34 82-34 116 0M382 318c34-34 82-34 116 0" fill="none" stroke="#c6d9e8" stroke-width="10" stroke-linecap="round"/>
+  <text x="320" y="386" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" fill="#0f172a">ドライアイス</text>
+</svg>
