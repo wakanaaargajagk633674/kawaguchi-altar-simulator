@@ -63,34 +63,50 @@ function chunkRows(rows: ProposalTableRow[]) {
 function OptionVisualCard({ item }: { item: ProposalLineItem }) {
   return (
     <div
-      className="min-h-[110px] rounded-lg border p-2"
+      className="min-h-[122px] rounded-lg border p-2"
       style={{
         backgroundColor: pdfColors.panel,
         borderColor: pdfColors.lineSoft,
       }}
     >
       <div
-        className="flex h-[72px] items-center justify-center rounded-md"
+        className="flex h-[58px] items-center justify-center rounded-md p-1"
         style={{ backgroundColor: pdfColors.paper }}
       >
         {item.image ? (
           <img
             src={item.image}
             alt={item.name}
-            className="h-full w-full object-contain p-1"
+            style={{
+              height: "auto",
+              maxHeight: "100%",
+              maxWidth: "100%",
+              objectFit: "contain",
+              width: "auto",
+            }}
           />
         ) : null}
       </div>
-      <p className="mt-2 truncate text-[11px] font-semibold">{item.name}</p>
+      <p
+        className="mt-2 text-[10.5px] font-semibold leading-[1.35]"
+        style={{
+          overflowWrap: "anywhere",
+        }}
+      >
+        {item.name}
+      </p>
       {item.quantityLabel ? (
-        <p className="text-[10px]" style={{ color: pdfColors.muted }}>
+        <p
+          className="mt-0.5 text-[9.5px] leading-[1.3]"
+          style={{ color: pdfColors.muted, overflowWrap: "anywhere" }}
+        >
           {item.quantityLabel}
         </p>
       ) : null}
       {item.note ? (
         <p
-          className="text-[10px] font-semibold"
-          style={{ color: pdfColors.gold }}
+          className="mt-0.5 text-[9.5px] font-semibold leading-[1.3]"
+          style={{ color: pdfColors.gold, overflowWrap: "anywhere" }}
         >
           {item.note}
         </p>
@@ -415,7 +431,7 @@ export default function ProposalDocument({
           className="mt-auto rounded-lg p-3 text-xs leading-5"
           style={{ backgroundColor: pdfColors.panel, color: pdfColors.muted }}
         >
-          金額明細と概算合計は、次ページ以降の見積もり詳細ページでご確認いただけます。
+          お見積もりの詳細内容は、次ページ以降でご確認いただけます。
         </p>
       </section>
 
