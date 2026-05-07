@@ -5,12 +5,14 @@ import {
   coffinOptions,
   dryIceCostConfig,
   funeralMealOptions,
+  returnGifts,
   restingCostConfig,
   serviceStaffConfig,
   singleFoodOptions,
   type AltarUpgrade,
   type OtherItemInput,
   type PriceOption,
+  type ReturnGiftInput,
   urnCoverOption,
   urnOptions,
   wakeMealOptions,
@@ -39,6 +41,12 @@ type OptionSelectorProps = {
   onFuneralMealPeopleChange: (people: string) => void;
   singleFoodCounts: Record<string, number>;
   onSingleFoodCountChange: (optionId: string, quantity: string) => void;
+  returnGiftInputs: ReturnGiftInput[];
+  onReturnGiftChange: (
+    giftId: string,
+    field: keyof Omit<ReturnGiftInput, "id">,
+    value: string,
+  ) => void;
   restingDays: number;
   onRestingDaysChange: (days: string) => void;
   dryIceDays: number;
@@ -46,6 +54,8 @@ type OptionSelectorProps = {
   selectedCareIds: string[];
   onCareToggle: (optionId: string) => void;
   otherItems: OtherItemInput[];
+  visibleOtherItemCount: number;
+  onAddOtherItem: () => void;
   onOtherItemChange: (
     index: number,
     field: keyof OtherItemInput,
@@ -273,6 +283,8 @@ export default function OptionSelector({
   onFuneralMealPeopleChange,
   singleFoodCounts,
   onSingleFoodCountChange,
+  returnGiftInputs,
+  onReturnGiftChange,
   restingDays,
   onRestingDaysChange,
   dryIceDays,
@@ -280,6 +292,8 @@ export default function OptionSelector({
   selectedCareIds,
   onCareToggle,
   otherItems,
+  visibleOtherItemCount,
+  onAddOtherItem,
   onOtherItemChange,
   wakeStaffCount,
   funeralStaffCount,
@@ -293,6 +307,11 @@ export default function OptionSelector({
     altarUpgrades.find((upgrade) => upgrade.id === selectedAltarUpgradeId) ??
     altarUpgrades[0];
   const totalStaffCount = wakeStaffCount + funeralStaffCount;
+  const returnGiftInputById = new Map(
+    returnGiftInputs.map((input) => [input.id, input]),
+  );
+  const visibleOtherItems = otherItems.slice(0, visibleOtherItemCount);
+  const canAddOtherItem = visibleOtherItemCount < otherItems.length;
 
   return (
     <section className="space-y-5">
@@ -495,6 +514,104 @@ export default function OptionSelector({
 
       <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-4">
+          <p className="text-sm font-semibold text-amber-700">返礼品</p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">
+            返礼品の型番・数量を入力
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            数量が1個以上の返礼品のみ、概算金額と確認欄に反映されます。
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
+          {returnGifts.map((gift) => {
+            const input = returnGiftInputById.get(gift.id);
+            const modelNumber = input?.modelNumber ?? gift.defaultModelNumber;
+            const quantity = input?.quantity ?? 0;
+            const subtotal = quantity > 0 ? gift.price * quantity : 0;
+
+            return (
+              <article
+                key={gift.id}
+                className="rounded-lg border border-stone-200 bg-stone-50 p-3"
+              >
+                <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-3">
+                  <div className="relative h-24 overflow-hidden rounded-md bg-white">
+                    {gift.image ? (
+                      <Image
+                        src={gift.image}
+                        alt={gift.name}
+                        fill
+                        unoptimized
+                        className="object-contain p-2"
+                        sizes="92px"
+                      />
+                    ) : null}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-950">
+                      {gift.name}
+                    </h3>
+                    <p className="mt-1 text-sm font-medium text-slate-700">
+                      単価 {formatYen(gift.price)}
+                    </p>
+                    <p className="mt-2 rounded-md bg-white px-2 py-1 text-sm font-semibold text-slate-900">
+                      小計 {formatYen(subtotal)}
+                    </p>
+                  </div>
+                </div>
+
+                <label className="mt-3 block">
+                  <span className="text-sm font-semibold text-slate-700">
+                    型番
+                  </span>
+                  <input
+                    type="text"
+                    value={modelNumber}
+                    onChange={(event) =>
+                      onReturnGiftChange(
+                        gift.id,
+                        "modelNumber",
+                        event.target.value,
+                      )
+                    }
+                    className="mt-1 h-12 w-full rounded-lg border border-stone-300 bg-white px-3 text-base font-medium text-slate-950 outline-none transition focus:border-amber-600 focus:ring-2 focus:ring-amber-200"
+                    placeholder="例：A-001"
+                  />
+                </label>
+
+                <label className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white p-3">
+                  <span className="text-base font-semibold text-slate-800">
+                    数量
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      value={quantity}
+                      onChange={(event) =>
+                        onReturnGiftChange(
+                          gift.id,
+                          "quantity",
+                          event.target.value,
+                        )
+                      }
+                      className="h-12 w-24 rounded-lg border border-stone-300 bg-white px-3 text-right text-lg font-semibold text-slate-950 outline-none transition focus:border-amber-600 focus:ring-2 focus:ring-amber-200"
+                    />
+                    <span className="text-sm font-medium text-slate-600">
+                      個
+                    </span>
+                  </span>
+                </label>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4">
           <p className="text-sm font-semibold text-amber-700">
             安置・ドライアイス
           </p>
@@ -649,7 +766,7 @@ export default function OptionSelector({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
-          {otherItems.map((item, index) => {
+          {visibleOtherItems.map((item, index) => {
             const subtotal =
               item.name.trim() && item.price > 0 && item.quantity > 0
                 ? item.price * item.quantity
@@ -724,6 +841,22 @@ export default function OptionSelector({
               </div>
             );
           })}
+        </div>
+
+        <div className="mt-4">
+          {canAddOtherItem ? (
+            <button
+              type="button"
+              onClick={onAddOtherItem}
+              className="min-h-12 rounded-lg border border-amber-600 bg-white px-4 text-base font-semibold text-amber-800 transition hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2"
+            >
+              自由項目を追加
+            </button>
+          ) : (
+            <p className="rounded-lg bg-stone-50 p-3 text-sm font-semibold text-slate-700">
+              自由項目は最大4件まで追加できます
+            </p>
+          )}
         </div>
       </div>
     </section>

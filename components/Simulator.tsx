@@ -15,11 +15,13 @@ import {
   coffinOptions,
   contactInfo,
   defaultOtherItems,
+  defaultReturnGiftInputs,
   dryIceCostConfig,
   funeralMealHallFeeOption,
   funeralMealOptions,
   funeralPlans,
   noAltarUpgradePlanNames,
+  returnGifts,
   restingCostConfig,
   serviceStaffConfig,
   singleFoodOptions,
@@ -28,6 +30,7 @@ import {
   type FuneralRank,
   type OtherItemInput,
   type PriceOption,
+  type ReturnGiftInput,
   urnCoverOption,
   urnOptions,
   wakeMealConfig,
@@ -99,12 +102,16 @@ export default function Simulator() {
   const [singleFoodCounts, setSingleFoodCounts] = useState<Record<string, number>>(
     defaultSingleFoodCounts,
   );
+  const [returnGiftInputs, setReturnGiftInputs] = useState<ReturnGiftInput[]>(
+    () => defaultReturnGiftInputs.map((input) => ({ ...input })),
+  );
   const [restingDays, setRestingDays] = useState(0);
   const [dryIceDays, setDryIceDays] = useState(0);
   const [selectedCareIds, setSelectedCareIds] = useState<string[]>([]);
   const [otherItems, setOtherItems] = useState<OtherItemInput[]>(() =>
     defaultOtherItems.map((item) => ({ ...item })),
   );
+  const [visibleOtherItemCount, setVisibleOtherItemCount] = useState(2);
   const [customerName, setCustomerName] = useState("");
   const [pdfError, setPdfError] = useState("");
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -204,6 +211,27 @@ export default function Simulator() {
         image: option.image,
       }));
     const careTotal = careLines.reduce((sum, line) => sum + line.amount, 0);
+    const returnGiftLines = returnGifts
+      .map((gift) => {
+        const input = returnGiftInputs.find((item) => item.id === gift.id);
+        const quantity = Math.max(0, Math.floor(input?.quantity ?? 0));
+        const modelNumber = (input?.modelNumber ?? "").trim();
+
+        return {
+          id: gift.id,
+          name: gift.name,
+          modelNumber,
+          quantity,
+          unitPrice: gift.price,
+          amount: gift.price * quantity,
+          image: gift.image,
+        };
+      })
+      .filter((line) => line.quantity > 0 && line.amount > 0);
+    const returnGiftAmount = returnGiftLines.reduce(
+      (sum, line) => sum + line.amount,
+      0,
+    );
     const otherLines = otherItems
       .map((item, index) => {
         const name = item.name.trim();
@@ -242,6 +270,7 @@ export default function Simulator() {
       restingAmount +
       dryIceAmount +
       careTotal +
+      returnGiftAmount +
       otherAmount;
 
     return {
@@ -291,6 +320,8 @@ export default function Simulator() {
       dryIceAmount,
       careLines,
       careTotal,
+      returnGiftLines,
+      returnGiftAmount,
       otherLines,
       otherAmount,
       actualCostAmount,
@@ -303,6 +334,7 @@ export default function Simulator() {
     isAltarUpgradeAvailable,
     isUrnCoverSelected,
     otherItems,
+    returnGiftInputs,
     restingDays,
     selectedAltarDesign,
     selectedAltarUpgrade,
@@ -431,6 +463,22 @@ export default function Simulator() {
       });
     });
 
+    estimate.returnGiftLines.forEach((line) => {
+      items.push({
+        id: line.id,
+        category: "返礼品",
+        name: line.name,
+        image: line.image,
+        quantityLabel: `${line.quantity}個`,
+        unitPrice: line.unitPrice,
+        subtotal: line.amount,
+        note: `${line.modelNumber ? `型番：${line.modelNumber} / ` : ""}単価：${formatYen(
+          line.unitPrice,
+        )}`,
+      });
+    });
+
+
     estimate.otherLines.forEach((line) => {
       items.push({
         id: line.id,
@@ -455,6 +503,7 @@ export default function Simulator() {
     estimate.restingAmount,
     estimate.restingDays,
     estimate.restingUnitPrice,
+    estimate.returnGiftLines,
     estimate.singleFoodLines,
     estimate.wakeMealAmount,
     estimate.wakeMealPeople,
@@ -638,6 +687,27 @@ export default function Simulator() {
       });
     });
 
+    estimate.returnGiftLines.forEach((line) => {
+      rows.push({
+        id: line.id,
+        category: "返礼品",
+        name: `${line.name}${line.modelNumber ? ` 型番：${line.modelNumber}` : ""}`,
+        quantity: `${line.quantity}個`,
+        unitPrice: line.unitPrice,
+        subtotal: line.amount,
+      });
+    });
+
+    if (estimate.returnGiftAmount > 0) {
+      rows.push({
+        id: "return-gift-total",
+        category: "返礼品合計",
+        name: `${estimate.returnGiftLines.length}種類`,
+        quantity: "-",
+        subtotal: estimate.returnGiftAmount,
+      });
+    }
+
     estimate.otherLines.forEach((line) => {
       rows.push({
         id: line.id,
@@ -697,6 +767,32 @@ export default function Simulator() {
       ...currentCounts,
       [optionId]: toNonNegativeInteger(value),
     }));
+  };
+
+  const handleReturnGiftChange = (
+    giftId: string,
+    field: keyof Omit<ReturnGiftInput, "id">,
+    value: string,
+  ) => {
+    setReturnGiftInputs((currentInputs) =>
+      currentInputs.map((input) => {
+        if (input.id !== giftId) {
+          return input;
+        }
+
+        if (field === "modelNumber") {
+          return { ...input, modelNumber: value };
+        }
+
+        return { ...input, quantity: toNonNegativeInteger(value) };
+      }),
+    );
+  };
+
+  const handleAddOtherItem = () => {
+    setVisibleOtherItemCount((currentCount) =>
+      Math.min(defaultOtherItems.length, currentCount + 1),
+    );
   };
 
   const handleOtherItemChange = (
@@ -914,6 +1010,8 @@ export default function Simulator() {
             }
             singleFoodCounts={singleFoodCounts}
             onSingleFoodCountChange={handleSingleFoodCountChange}
+            returnGiftInputs={returnGiftInputs}
+            onReturnGiftChange={handleReturnGiftChange}
             restingDays={restingDays}
             onRestingDaysChange={(value) =>
               setRestingDays(toNonNegativeInteger(value))
@@ -925,6 +1023,8 @@ export default function Simulator() {
             selectedCareIds={selectedCareIds}
             onCareToggle={handleCareToggle}
             otherItems={otherItems}
+            visibleOtherItemCount={visibleOtherItemCount}
+            onAddOtherItem={handleAddOtherItem}
             onOtherItemChange={handleOtherItemChange}
             wakeStaffCount={estimate.wakeStaffCount}
             funeralStaffCount={estimate.funeralStaffCount}

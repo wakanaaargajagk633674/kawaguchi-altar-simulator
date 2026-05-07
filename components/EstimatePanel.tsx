@@ -28,6 +28,16 @@ export type EstimateOtherLine = {
   amount: number;
 };
 
+export type EstimateReturnGiftLine = {
+  id: string;
+  name: string;
+  modelNumber: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  image?: string;
+};
+
 export type EstimateSummary = {
   planName: string;
   rankName: string;
@@ -71,6 +81,8 @@ export type EstimateSummary = {
   dryIceAmount: number;
   careLines: EstimateCareLine[];
   careTotal: number;
+  returnGiftLines: EstimateReturnGiftLine[];
+  returnGiftAmount: number;
   otherLines: EstimateOtherLine[];
   otherAmount: number;
   actualCostAmount: number;
@@ -262,6 +274,25 @@ export default function EstimatePanel({ estimate }: EstimatePanelProps) {
               amount={line.amount}
             />
           ))}
+
+          {estimate.returnGiftLines.map((line) => (
+            <EstimateLine
+              key={line.id}
+              label="返礼品"
+              detail={`${line.name} ${
+                line.modelNumber ? `型番：${line.modelNumber} ` : ""
+              }単価${formatYen(line.unitPrice)} × ${line.quantity}個`}
+              amount={line.amount}
+            />
+          ))}
+
+          {estimate.returnGiftAmount > 0 ? (
+            <EstimateLine
+              label="返礼品合計"
+              detail={`${estimate.returnGiftLines.length}種類`}
+              amount={estimate.returnGiftAmount}
+            />
+          ) : null}
 
           {estimate.otherLines.map((line) => (
             <EstimateLine

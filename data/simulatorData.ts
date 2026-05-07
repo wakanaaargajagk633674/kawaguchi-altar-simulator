@@ -46,6 +46,16 @@ export type FixedFeeOption = {
   image?: string;
 };
 
+export type ReturnGiftOption = PriceOption & {
+  defaultModelNumber: string;
+};
+
+export type ReturnGiftInput = {
+  id: string;
+  modelNumber: string;
+  quantity: number;
+};
+
 export type OtherItemInput = {
   name: string;
   price: number;
@@ -672,6 +682,66 @@ export const singleFoodOptions: SingleFoodOption[] = [
   },
 ];
 
+export const returnGifts: ReturnGiftOption[] = [
+  {
+    id: "gift-a",
+    name: "返礼品A",
+    price: 2376,
+    image: "/images/options/gift.jpg",
+    defaultModelNumber: "A-001",
+  },
+  {
+    id: "gift-b",
+    name: "返礼品B",
+    price: 2916,
+    image: "/images/options/gift.jpg",
+    defaultModelNumber: "B-001",
+  },
+  {
+    id: "gift-c",
+    name: "返礼品C",
+    price: 3024,
+    image: "/images/options/gift.jpg",
+    defaultModelNumber: "C-001",
+  },
+  {
+    id: "gift-d",
+    name: "返礼品D",
+    price: 3456,
+    image: "/images/options/gift.jpg",
+    defaultModelNumber: "D-001",
+  },
+  {
+    id: "gift-e",
+    name: "返礼品E",
+    price: 3672,
+    image: "/images/options/gift.jpg",
+    defaultModelNumber: "E-001",
+  },
+  {
+    id: "gift-f",
+    name: "返礼品F",
+    price: 4536,
+    image: "/images/options/gift.jpg",
+    defaultModelNumber: "F-001",
+  },
+  {
+    id: "gift-g",
+    name: "返礼品G",
+    price: 5616,
+    image: "/images/options/gift.jpg",
+    defaultModelNumber: "G-001",
+  },
+];
+
+export const defaultReturnGiftInputs: ReturnGiftInput[] = returnGifts.map(
+  (gift) => ({
+    id: gift.id,
+    modelNumber: gift.defaultModelNumber,
+    quantity: 0,
+  }),
+);
+
 export const funeralMealHallFeeOption: FixedFeeOption = {
   id: "farewell_hall_fee",
   name: "忌払会場費",
@@ -680,6 +750,8 @@ export const funeralMealHallFeeOption: FixedFeeOption = {
 };
 
 export const defaultOtherItems: OtherItemInput[] = [
+  { name: "", price: 0, quantity: 0 },
+  { name: "", price: 0, quantity: 0 },
   { name: "", price: 0, quantity: 0 },
   { name: "", price: 0, quantity: 0 },
 ];
