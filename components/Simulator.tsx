@@ -767,7 +767,7 @@ export default function Simulator() {
   };
 
   return (
-    <main className="min-h-screen overflow-x-clip bg-[#f7f4ee] pb-32 text-slate-950 md:pb-12">
+    <main className="min-h-screen overflow-x-clip bg-[#f7f4ee] pb-40 text-slate-950 md:pb-12">
       <section className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 py-6 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8 lg:py-8">
           <div className="max-w-3xl">
@@ -798,7 +798,7 @@ export default function Simulator() {
       </section>
 
       <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 md:grid-cols-2 md:items-start lg:px-8">
-        <div className="sticky top-0 z-30 md:top-6">
+        <div className="md:sticky md:top-6 md:z-30">
           <PreviewStage
             plan={selectedPlan}
             rank={selectedRank}
