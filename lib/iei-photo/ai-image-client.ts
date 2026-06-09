@@ -12,6 +12,7 @@
 import type {
   IeiPhotoAiImageMode,
   IeiPhotoClothingStyle,
+  IeiPhotoPose,
 } from "./types";
 
 const AI_IMAGE_ENDPOINT = "/api/iei-photo/ai-image";
@@ -88,6 +89,7 @@ export async function requestAiImage(
   baseCanvas: HTMLCanvasElement,
   mode: IeiPhotoAiImageMode,
   clothingStyle: IeiPhotoClothingStyle,
+  pose: IeiPhotoPose,
   extraPrompt?: string,
 ): Promise<Blob> {
   const imageBlob = await downscaleCanvasForAi(baseCanvas);
@@ -96,6 +98,7 @@ export async function requestAiImage(
   form.append("image", imageBlob, "input.jpg");
   form.append("mode", mode);
   form.append("clothingStyle", clothingStyle);
+  form.append("pose", pose);
   if (extraPrompt && extraPrompt.trim()) {
     form.append("prompt", extraPrompt.trim());
   }

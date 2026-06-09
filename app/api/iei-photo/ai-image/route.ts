@@ -23,6 +23,7 @@ import { buildAiPrompt } from "@/lib/iei-photo/ai-prompts";
 import type {
   IeiPhotoAiImageMode,
   IeiPhotoClothingStyle,
+  IeiPhotoPose,
 } from "@/lib/iei-photo/types";
 
 // 画像生成は時間がかかるため、関数の上限を最大（300秒）にする。
@@ -40,6 +41,13 @@ const VALID_CLOTHING: IeiPhotoClothingStyle[] = [
   "mourning_western",
   "suit",
   "casual",
+];
+const VALID_POSE: IeiPhotoPose[] = [
+  "none",
+  "front",
+  "slight_right",
+  "slight_left",
+  "upright",
 ];
 
 function jsonError(message: string, status: number): Response {
@@ -83,11 +91,16 @@ export async function POST(request: Request): Promise<Response> {
     ? (clothingRaw as IeiPhotoClothingStyle)
     : "none";
 
+  const poseRaw = String(form.get("pose") ?? "none");
+  const pose = VALID_POSE.includes(poseRaw as IeiPhotoPose)
+    ? (poseRaw as IeiPhotoPose)
+    : "none";
+
   const extraPromptRaw = form.get("prompt");
   const extraPrompt =
     typeof extraPromptRaw === "string" ? extraPromptRaw : undefined;
 
-  const prompt = buildAiPrompt(mode, clothingStyle, extraPrompt);
+  const prompt = buildAiPrompt(mode, clothingStyle, pose, extraPrompt);
 
   // OpenAI Images edit へ転送する multipart を組み立てる。
   const upstreamForm = new FormData();

@@ -50,6 +50,7 @@ import type {
   IeiPhotoGender,
   IeiPhotoJobStatus,
   IeiPhotoMode,
+  IeiPhotoPose,
   IeiPhotoQualityCheckItem,
 } from "@/lib/iei-photo/types";
 
@@ -175,6 +176,7 @@ export default function IeiPhotoPage() {
   // AIモード（高度AI補正 / AI肖像生成 / AIに全てお任せ）の状態
   const [clothingStyle, setClothingStyle] =
     useState<IeiPhotoClothingStyle>("none");
+  const [pose, setPose] = useState<IeiPhotoPose>("none");
   const [aiResultMode, setAiResultMode] = useState<IeiPhotoAiResultMode>(null);
   const [allowPortrait, setAllowPortrait] = useState<boolean>(false);
   const [allowAuto, setAllowAuto] = useState<boolean>(false);
@@ -273,7 +275,11 @@ export default function IeiPhotoPage() {
         baseCanvasRef.current = canvas;
         setHasBase(true);
         setError(null);
-        const blob = await exportFromBaseByKind(canvas, kind, bg);
+        // AI結果があるときは 16:9 余白も雲固定にせず AI画像をぼかして敷く。
+        const aiActive = aiEnhancedImgRef.current != null;
+        const blob = await exportFromBaseByKind(canvas, kind, bg, {
+          monitorFillFromBase: aiActive,
+        });
         replaceOutputUrl(URL.createObjectURL(blob));
       } catch (e) {
         baseCanvasRef.current = null;
@@ -446,6 +452,10 @@ export default function IeiPhotoPage() {
     setClothingStyle(style);
   }, []);
 
+  const handleChangePose = useCallback((next: IeiPhotoPose) => {
+    setPose(next);
+  }, []);
+
   /**
    * AI画像処理（高度AI補正 / AI肖像生成 / AIに全てお任せ）を実行する。
    * 現在の基準写真 Canvas を /api/iei-photo/ai-image へ送り、AI結果画像を
@@ -484,7 +494,7 @@ export default function IeiPhotoPage() {
 
       let pendingUrl: string | null = null;
       try {
-        const blob = await requestAiImage(base, aiMode, clothingStyle);
+        const blob = await requestAiImage(base, aiMode, clothingStyle, pose);
         const url = URL.createObjectURL(blob);
         pendingUrl = url;
         const img = await loadImageElement(url);
@@ -530,6 +540,7 @@ export default function IeiPhotoPage() {
       allowPortrait,
       allowAuto,
       clothingStyle,
+      pose,
       generatePreview,
       computeEffective,
       adjustments,
@@ -631,7 +642,9 @@ export default function IeiPhotoPage() {
     setExporting(true);
     setError(null);
     try {
-      const blob = await exportFromBaseByKind(base, kind, background);
+      const blob = await exportFromBaseByKind(base, kind, background, {
+        monitorFillFromBase: aiEnhancedImgRef.current != null,
+      });
       downloadBlob(blob, filenameForKind(kind));
       setHasExported(true);
     } catch (e) {
@@ -654,7 +667,9 @@ export default function IeiPhotoPage() {
     setExporting(true);
     setError(null);
     try {
-      const zip = await exportAllZipFromBase(base, background);
+      const zip = await exportAllZipFromBase(base, background, {
+        monitorFillFromBase: aiEnhancedImgRef.current != null,
+      });
       downloadBlob(zip, "iei-photos.zip");
       setHasExported(true);
     } catch (e) {
@@ -803,6 +818,8 @@ export default function IeiPhotoPage() {
               mode={mode}
               clothingStyle={clothingStyle}
               onChangeClothing={handleChangeClothing}
+              pose={pose}
+              onChangePose={handleChangePose}
               allowPortrait={allowPortrait}
               onTogglePortrait={setAllowPortrait}
               allowAuto={allowAuto}

@@ -14,6 +14,7 @@
 import type {
   IeiPhotoAiImageMode,
   IeiPhotoClothingStyle,
+  IeiPhotoPose,
 } from "./types";
 
 /** モードごとの基本プロンプト（本人らしさ・顔特徴・背景明るさ補正を含む）。 */
@@ -58,19 +59,52 @@ export const IEI_PHOTO_CLOTHING_ORDER: IeiPhotoClothingStyle[] = [
   "casual",
 ];
 
+/** 体勢・向きごとの追加指示（none は追加なし）。 */
+export const IEI_PHOTO_POSE_PROMPTS: Record<IeiPhotoPose, string> = {
+  none: "",
+  front:
+    "人物の顔と上半身をできるだけ正面に向け、まっすぐカメラを見ている構図にしてください。",
+  slight_right: "人物の顔をやや右斜めに向けた、落ち着いた構図にしてください。",
+  slight_left: "人物の顔をやや左斜めに向けた、落ち着いた構図にしてください。",
+  upright: "背筋を伸ばし、落ち着いた自然な姿勢に整えてください。",
+};
+
+/** UI 表示用の体勢ラベル。 */
+export const IEI_PHOTO_POSE_LABELS: Record<IeiPhotoPose, string> = {
+  none: "指定なし",
+  front: "正面を向く",
+  slight_right: "やや右向き",
+  slight_left: "やや左向き",
+  upright: "姿勢を正す",
+};
+
+/** UI のボタン表示順。 */
+export const IEI_PHOTO_POSE_ORDER: IeiPhotoPose[] = [
+  "none",
+  "front",
+  "slight_right",
+  "slight_left",
+  "upright",
+];
+
 /**
  * 最終プロンプトを組み立てる。
- * 基本プロンプト（本人らしさ・顔特徴・背景明るさ）＋ 服装指示（任意）＋ 追加指示（任意）。
+ * 統合順: 本人らしさ・顔特徴・背景明るさ（基本）→ 服装 → 体勢・向き → 追加指示。
  */
 export function buildAiPrompt(
   mode: IeiPhotoAiImageMode,
   clothingStyle: IeiPhotoClothingStyle,
+  pose: IeiPhotoPose,
   extraPrompt?: string,
 ): string {
   const parts: string[] = [IEI_PHOTO_AI_BASE_PROMPTS[mode]];
   const clothing = IEI_PHOTO_CLOTHING_PROMPTS[clothingStyle];
   if (clothing) {
     parts.push(clothing);
+  }
+  const poseText = IEI_PHOTO_POSE_PROMPTS[pose];
+  if (poseText) {
+    parts.push(poseText);
   }
   const extra = extraPrompt?.trim();
   if (extra) {
