@@ -109,6 +109,28 @@ export type IeiPhotoAdjustments = {
 export type IeiPhotoGender = "male" | "female";
 
 /**
+ * 服装選択（AIモードのみ有効）。
+ * 通常生成（AI標準生成 / rembg+Canvas）では服装変更は行わない。
+ */
+export type IeiPhotoClothingStyle =
+  | "none" // 指定なし
+  | "mourning_japanese" // 喪服（和装）
+  | "mourning_western" // 喪服（洋装）
+  | "suit" // スーツ
+  | "casual"; // カジュアル
+
+/**
+ * AI画像処理のモード（/api/iei-photo/ai-image に渡す）。
+ * - advanced: 高度AI補正
+ * - portrait: AI肖像生成
+ * - auto: AIに全てお任せ
+ */
+export type IeiPhotoAiImageMode = "advanced" | "portrait" | "auto";
+
+/** 直近のAI結果の種別（無ければ null）。 */
+export type IeiPhotoAiResultMode = IeiPhotoAiImageMode | null;
+
+/**
  * 背景設定。
  * 切り抜いた人物を、選択した背景の上に Canvas 合成して出力する。
  * - 単色 / グラデーション: 全面を塗る。
