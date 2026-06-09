@@ -1,5 +1,7 @@
 fastapi
 uvicorn[standard]
 python-multipart
-rembg
+# CPU 推論バックエンド（onnxruntime）を含める。これが無いと初回推論で
+# "No onnxruntime backend found" になる。GPU 依存は入れない（CPU worker 前提）。
+rembg[cpu]
 pillow
