@@ -1,14 +1,14 @@
 /**
- * 画像処理ルール定義（MVP）
+ * AI生成モードのルール定義
  *
- * ここは「各加工モードで何を許可し、何を禁止するか」をコード上で明示するための場所です。
- * 実際の画像処理エンジン（将来の外部GPUサーバー / ComfyUI / Python画像処理API 等）は、
- * このルールを参照して動作する想定です。MVP では定義のみで処理は行いません。
+ * ここは「各AI生成モードで何を許可し、何を禁止するか」をコード上で明示する場所です。
+ * 実際の生成エンジン（将来の外部GPU / ComfyUI / 画像生成API 等）はこのルールを参照して
+ * 動作する想定です。現状の MVP は定義のみで、人物の再生成は行いません。
  *
- * 重要な方針:
- * - 通常は人物の顔・肌・髪・服を AI で描き直さない。
- * - 生成AI肖像は、元写真の白飛びや破損が大きい場合の最終手段としてのみ使用する。
- * - まず基準写真を1枚作り、手札・四つ切り・16:9 はそこから切り出す。
+ * 重要な品質方針:
+ * - 標準生成（AI標準生成）では人物を勝手に別人化させない。顔・肌・髪・服の特徴を保持する。
+ * - AI肖像生成は、元写真の白飛びや破損が大きい場合の最終手段としてのみ使用する。
+ * - まず基準写真を1枚生成し、手札・四つ切り・16:9 はそこから切り出す。
  */
 
 import type { IeiPhotoMode } from "./types";
@@ -20,7 +20,7 @@ export type IeiPhotoModeRule = {
   label: string;
   /** UI 表示用の概要 */
   summary: string;
-  /** 許可される操作（人物の再生成を伴わない範囲） */
+  /** 許可される操作 */
   allowedOperations: string[];
   /** 明確に禁止される操作 */
   forbiddenOperations: string[];
@@ -33,23 +33,21 @@ export type IeiPhotoModeRule = {
 };
 
 export const IEI_PHOTO_MODE_RULES: Record<IeiPhotoMode, IeiPhotoModeRule> = {
-  PHOTO_CORRECTION_ONLY: {
-    mode: "PHOTO_CORRECTION_ONLY",
-    label: "写真補正のみ",
-    summary: "人物の再生成は行わず、明るさ・色味などの補正のみを行います。",
+  AI_STANDARD: {
+    mode: "AI_STANDARD",
+    label: "AI標準生成",
+    summary:
+      "人物の特徴を保持しながら、背景差し替え・明るさ・色味・構図を整える標準モード。",
     allowedOperations: [
+      "背景差し替え・整え",
       "明るさ補正",
       "色味補正",
       "コントラスト調整",
-      "影の軽減",
-      "必要最低限のノイズ調整",
-      "背景切り抜き",
-      "背景差し替え",
-      "トリミング",
+      "構図・トリミング調整",
       "サイズ変更",
     ],
     forbiddenOperations: [
-      "人物（顔・肌・髪・服）の再生成",
+      "人物（顔・肌・髪・服）の別人化",
       "顔のパーツの描き直し",
       "本人らしさを損なう加工",
     ],
@@ -58,19 +56,21 @@ export const IEI_PHOTO_MODE_RULES: Record<IeiPhotoMode, IeiPhotoModeRule> = {
     requiresExplicitConsent: false,
   },
 
-  PARTIAL_AI_CORRECTION: {
-    mode: "PARTIAL_AI_CORRECTION",
-    label: "部分AI補正",
+  AI_ADVANCED: {
+    mode: "AI_ADVANCED",
+    label: "高度AI補正",
     summary:
-      "背景・照明・白飛び感の自然化のみを AI で補助します。顔の重要特徴は保護します。",
+      "白飛び・強い影・背景境界・服まわりなど、通常処理では難しい部分をAIで補正するモード。",
     allowedOperations: [
-      "背景の自然化",
+      "白飛びの補正",
+      "強い影の補正",
+      "背景境界の自然化",
+      "服まわりの整え",
       "照明の自然化",
-      "白飛び感の自然化",
     ],
     forbiddenOperations: [
       "顔の重要特徴の改変",
-      "人物そのものの再生成",
+      "本人らしさを損なう人物の作り替え",
     ],
     protectedFeatures: [
       "ほくろ",
@@ -83,21 +83,21 @@ export const IEI_PHOTO_MODE_RULES: Record<IeiPhotoMode, IeiPhotoModeRule> = {
       "服の質感",
     ],
     usageConditions: [
-      "写真補正のみでは背景・照明・白飛びが改善しきれない場合",
+      "AI標準生成では背景・照明・白飛びが整えきれない場合",
     ],
     requiresExplicitConsent: false,
   },
 
-  FULL_AI_PORTRAIT: {
-    mode: "FULL_AI_PORTRAIT",
-    label: "生成AI肖像",
+  AI_PORTRAIT: {
+    mode: "AI_PORTRAIT",
+    label: "AI肖像生成",
     summary:
-      "明示的に許可された場合のみ使用する最終手段です。本人らしさの維持を最優先します。",
+      "元写真の状態が悪い場合に、人物も含めて遺影写真として自然に生成する最終手段のモード。",
     allowedOperations: [
-      "元写真を基にした肖像の再構成（明示許可時のみ）",
+      "元写真を基にした人物を含む肖像の生成（明示許可時のみ）",
     ],
     forbiddenOperations: [
-      "許可なく人物を再生成すること",
+      "許可なく人物を作り替えること",
       "本人らしさを損なう創作的な改変",
     ],
     protectedFeatures: ["本人らしさ（顔の同一性）"],
@@ -111,17 +111,17 @@ export const IEI_PHOTO_MODE_RULES: Record<IeiPhotoMode, IeiPhotoModeRule> = {
 
 /** モード一覧（UI のセレクタ表示順） */
 export const IEI_PHOTO_MODE_ORDER: IeiPhotoMode[] = [
-  "PHOTO_CORRECTION_ONLY",
-  "PARTIAL_AI_CORRECTION",
-  "FULL_AI_PORTRAIT",
+  "AI_STANDARD",
+  "AI_ADVANCED",
+  "AI_PORTRAIT",
 ];
 
 /** 既定モード */
-export const IEI_PHOTO_DEFAULT_MODE: IeiPhotoMode = "PHOTO_CORRECTION_ONLY";
+export const IEI_PHOTO_DEFAULT_MODE: IeiPhotoMode = "AI_STANDARD";
 
 /** UI に表示する共通の注意書き。 */
 export const IEI_PHOTO_NOTICES: string[] = [
-  "通常は人物の顔・肌・髪・服を AI で描き直しません。",
-  "生成AI肖像は、元写真の白飛びや破損が大きい場合のみ使用します。",
-  "まず基準写真を1枚作り、手札・四つ切り・16:9 はそこから切り出します。",
+  "AI標準生成では人物（顔・肌・髪・服）の特徴をできるだけ保持し、勝手に別人化させません。",
+  "AI肖像生成は、元写真の白飛びや破損が大きい場合の最終手段です。",
+  "まず基準写真を1枚生成し、手札・四つ切り・16:9 はそこから切り出します。",
 ];

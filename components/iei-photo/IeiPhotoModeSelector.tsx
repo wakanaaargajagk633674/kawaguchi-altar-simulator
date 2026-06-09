@@ -25,9 +25,9 @@ export default function IeiPhotoModeSelector({
   return (
     <section className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-4">
-        <p className="text-sm font-semibold text-amber-700">加工モード</p>
+        <p className="text-sm font-semibold text-amber-700">AI生成モード</p>
         <h2 className="mt-1 text-xl font-semibold text-slate-950">
-          加工モードを選択
+          AI生成モードを選択
         </h2>
       </div>
 

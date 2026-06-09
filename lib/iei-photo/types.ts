@@ -7,22 +7,24 @@
  */
 
 /**
- * 加工モード。
+ * AI生成モード。
  * 各モードで「何をして良いか／何をしてはいけないか」は image-rules.ts に明示しています。
+ * 標準は本人らしさを守り、人物を勝手に別人化させない設計です。
  */
 export type IeiPhotoMode =
-  | "PHOTO_CORRECTION_ONLY" // 写真補正のみ（人物の再生成なし）
-  | "PARTIAL_AI_CORRECTION" // 部分AI補正（背景・照明・白飛びの自然化のみ）
-  | "FULL_AI_PORTRAIT"; // 生成AI肖像（明示許可時の最終手段のみ）
+  | "AI_STANDARD" // AI標準生成（本人らしさ保持。背景・明るさ・色味・構図を整える）
+  | "AI_ADVANCED" // 高度AI補正（白飛び・強い影・背景境界・服まわりなどをAI補正）
+  | "AI_PORTRAIT"; // AI肖像生成（元写真の状態が悪い場合の最終手段）
 
 /**
  * ジョブの進行状態。
  */
 export type IeiPhotoJobStatus =
   | "queued" // 受付済み
-  | "analyzing" // 解析中
-  | "creating_base" // 基準写真作成中
-  | "checking_quality" // 品質チェック中
+  | "analyzing" // 写真を解析中
+  | "configuring" // AI生成設定を確認中
+  | "creating_base" // 基準写真を生成中
+  | "checking_quality" // 品質を確認中
   | "completed" // 完了
   | "failed"; // 失敗
 
@@ -104,7 +106,12 @@ export type IeiPhotoAdjustments = {
  * 品質チェック項目。UI 表示用（MVP ではモック値）。
  */
 export type IeiPhotoQualityCheckItem = {
-  key: "faceSimilarity" | "featureProtection" | "aiArtifact" | "overexposure";
+  key:
+    | "identityLikeness" // 本人らしさ
+    | "featureRetention" // 顔・髪・服の保持
+    | "aiArtifact" // AIっぽさ
+    | "exposureShadow" // 白飛び・影
+    | "backgroundNaturalness"; // 背景自然さ
   label: string;
   /** pending: 未判定 / pass: 合格 / warn: 要確認 / fail: 不合格 */
   status: "pending" | "pass" | "warn" | "fail";

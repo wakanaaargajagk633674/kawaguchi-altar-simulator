@@ -6,6 +6,8 @@ import IeiPhotoModeSelector from "@/components/iei-photo/IeiPhotoModeSelector";
 import IeiPhotoAdjustmentPanel from "@/components/iei-photo/IeiPhotoAdjustmentPanel";
 import IeiPhotoPreview from "@/components/iei-photo/IeiPhotoPreview";
 import IeiPhotoStatus from "@/components/iei-photo/IeiPhotoStatus";
+import IeiPhotoStepIndicator from "@/components/iei-photo/IeiPhotoStepIndicator";
+import IeiPhotoNextActions from "@/components/iei-photo/IeiPhotoNextActions";
 import IeiPhotoQualityCheck from "@/components/iei-photo/IeiPhotoQualityCheck";
 import IeiPhotoExportButtons from "@/components/iei-photo/IeiPhotoExportButtons";
 import {
@@ -14,6 +16,10 @@ import {
 } from "@/lib/iei-photo/image-rules";
 import { IEI_PHOTO_MOCK_STEPS } from "@/lib/iei-photo/mock-job";
 import { IEI_PHOTO_EXPORT_ORDER } from "@/lib/iei-photo/export-sizes";
+import {
+  getAiGenerationProvider,
+  IEI_PHOTO_MODE_TO_ROLE,
+} from "@/lib/iei-photo/ai-generation-provider";
 import {
   IEI_PHOTO_DEFAULT_ADJUSTMENTS,
   type IeiPhotoAdjustmentKey,
@@ -34,19 +40,19 @@ import type {
   IeiPhotoQualityCheckItem,
 } from "@/lib/iei-photo/types";
 
-/** 処理前の品質チェック項目（未判定） */
+/** 生成前の品質チェック項目（未判定） */
 const INITIAL_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
   {
-    key: "faceSimilarity",
-    label: "顔の類似度",
+    key: "identityLikeness",
+    label: "本人らしさチェック",
     status: "pending",
-    description: "加工後も本人の顔立ちが保たれているかを確認します。",
+    description: "生成後も本人らしさが保たれているかを確認します。",
   },
   {
-    key: "featureProtection",
-    label: "ほくろ・シワ・眼鏡などの保護",
+    key: "featureRetention",
+    label: "顔・髪・服の保持",
     status: "pending",
-    description: "ほくろ・シワ・眼鏡など本人の特徴が消えていないかを確認します。",
+    description: "顔・髪・服の特徴が保持されているかを確認します。",
   },
   {
     key: "aiArtifact",
@@ -55,45 +61,57 @@ const INITIAL_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
     description: "不自然なAI特有の質感や破綻が出ていないかを確認します。",
   },
   {
-    key: "overexposure",
-    label: "白飛びチェック",
+    key: "exposureShadow",
+    label: "白飛び・影チェック",
     status: "pending",
-    description: "ハイライトの白飛びや階調の損失がないかを確認します。",
+    description: "白飛びや強い影が残っていないかを確認します。",
+  },
+  {
+    key: "backgroundNaturalness",
+    label: "背景自然さチェック",
+    status: "pending",
+    description: "背景が自然に見えるかを確認します。",
   },
 ];
 
 /**
  * 基準写真が用意できた後の品質チェック表示。
- * 実判定は行わず、ブラウザ内 Canvas で「元写真ピクセルのトリミング・補正のみ」を
- * 行っている事実を表示する（AI は未使用）。
+ * 実判定は未実装。標準生成は元写真ピクセルを優先し、人物を別人化させない。
  */
 const READY_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
   {
-    key: "faceSimilarity",
-    label: "顔の類似度",
+    key: "identityLikeness",
+    label: "本人らしさチェック",
     status: "pending",
-    description: "AIによる類似度の自動判定は行っていません。",
+    description: "AIによる本人らしさの自動判定は行っていません。",
     note: "未実装",
   },
   {
-    key: "featureProtection",
-    label: "ほくろ・シワ・眼鏡などの保護",
+    key: "featureRetention",
+    label: "顔・髪・服の保持",
     status: "pass",
-    description: "元写真のピクセルをそのまま使用しています（描き直しなし）。",
-    note: "元写真ピクセル使用",
+    description: "標準生成では人物を別人化させず、元写真の情報を優先しています。",
+    note: "標準生成では元写真ピクセルを優先",
   },
   {
     key: "aiArtifact",
     label: "AIっぽさチェック",
-    status: "pass",
-    description: "AIによる生成・補正は使用していません。",
-    note: "AI未使用",
+    status: "pending",
+    description: "AIっぽさの自動判定は行っていません。",
+    note: "未実装",
   },
   {
-    key: "overexposure",
-    label: "白飛びチェック",
+    key: "exposureShadow",
+    label: "白飛び・影チェック",
     status: "pending",
-    description: "白飛びの自動判定は行っていません。",
+    description: "白飛び・影の自動判定は行っていません。",
+    note: "未実装",
+  },
+  {
+    key: "backgroundNaturalness",
+    label: "背景自然さチェック",
+    status: "pending",
+    description: "背景自然さの自動判定は行っていません。",
     note: "未実装",
   },
 ];
@@ -130,14 +148,17 @@ export default function IeiPhotoPage() {
   const [showGuides, setShowGuides] = useState<boolean>(true);
   const [statusState, setStatusState] = useState<StatusState>(IDLE_STATUS);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [exporting, setExporting] = useState<boolean>(false);
   const [hasBase, setHasBase] = useState<boolean>(false);
+  const [hasExported, setHasExported] = useState<boolean>(false);
   const [imgLoaded, setImgLoaded] = useState<boolean>(false);
 
-  // 読み込み済み元画像（プレビュー・基準写真生成の元データ）
+  // 読み込み済み元画像 / 基準写真（親データ）
   const imgRef = useRef<HTMLImageElement | null>(null);
-  // 基準写真（親データ）。各サイズはここから派生させる。
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // 「手動で微調整する」でスクロール移動する先
+  const adjustmentRef = useRef<HTMLDivElement | null>(null);
 
   // ObjectURL の最新値を保持し、アンマウント時に解放するための ref
   const previewUrlRef = useRef<string | null>(null);
@@ -180,7 +201,8 @@ export default function IeiPhotoPage() {
 
   /**
    * 補正値・選択中サイズで基準写真を作り直し、プレビュー画像を生成する。
-   * 基準写真が用意できた時点で出力も可能になる（モックの「処理開始」完了は不要）。
+   * 現在のMVPでは人物再生成は行わず、ブラウザ内 Canvas で基準写真を生成する
+   * （AI標準生成の仮実装）。
    */
   const generatePreview = useCallback(
     async (adj: IeiPhotoAdjustments, kind: IeiPhotoExportKind) => {
@@ -199,7 +221,7 @@ export default function IeiPhotoPage() {
         baseCanvasRef.current = null;
         setHasBase(false);
         setError(
-          e instanceof Error ? e.message : "基準写真の作成に失敗しました。",
+          e instanceof Error ? e.message : "基準写真の生成に失敗しました。",
         );
       }
     },
@@ -209,7 +231,9 @@ export default function IeiPhotoPage() {
   const resetResults = useCallback(() => {
     setStatusState(IDLE_STATUS);
     setError(null);
+    setInfo(null);
     setHasBase(false);
+    setHasExported(false);
     baseCanvasRef.current = null;
     replaceOutputUrl(null);
   }, [replaceOutputUrl]);
@@ -231,7 +255,6 @@ export default function IeiPhotoPage() {
       });
       setFileName(file.name);
 
-      // 元画像を一度だけ読み込み、即座にプレビューを生成する。
       loadImageElement(url)
         .then((img) => {
           imgRef.current = img;
@@ -264,6 +287,18 @@ export default function IeiPhotoPage() {
     statusState.status !== "idle" &&
     statusState.status !== "completed" &&
     statusState.status !== "failed";
+  const isCompleted = statusState.status === "completed";
+
+  // 現在の処理ステップ（1〜5）
+  const currentStep = !previewUrl
+    ? 1
+    : isProcessing
+      ? 3
+      : isCompleted
+        ? hasExported
+          ? 5
+          : 4
+        : 2;
 
   const handleAdjustmentChange = useCallback(
     (key: IeiPhotoAdjustmentKey, value: number) => {
@@ -288,11 +323,11 @@ export default function IeiPhotoPage() {
   }, [adjustments, previewKind, imgLoaded, generatePreview]);
 
   /**
-   * 処理ステータスのモック表示（任意）。
-   * 解析中 → 基準写真作成中 → 品質チェック中 → 完了。
-   * 出力の可否は基準写真の有無で決まるため、これはあくまで進行表示のデモ。
+   * 「AI遺影写真を生成する」。
+   * 進行表示: 写真を解析中 → AI生成設定を確認中 → 基準写真を生成中 → 品質を確認中 → 完了。
+   * 実APIは未接続。AI標準生成は Canvas での基準写真生成に委譲する（provider 経由で役割を判定）。
    */
-  const handleStart = useCallback(() => {
+  const handleStart = useCallback(async () => {
     if (!previewUrl) {
       setError("先に写真をアップロードしてください。");
       return;
@@ -302,6 +337,16 @@ export default function IeiPhotoPage() {
     }
     clearTimers();
     setError(null);
+    setInfo(null);
+
+    // AI処理プロバイダー（現状 mock）に役割を問い合わせる。
+    const role = IEI_PHOTO_MODE_TO_ROLE[mode];
+    const provider = getAiGenerationProvider();
+    const result = await provider.generate({ role });
+    if (!result.handledByCanvas) {
+      // 高度AI補正 / AI肖像生成は未接続。今回は AI標準生成（Canvas）で生成する。
+      setInfo(`${result.message}（今回は AI標準生成（Canvas）で生成します）`);
+    }
 
     let cumulativeDelay = 0;
     IEI_PHOTO_MOCK_STEPS.forEach((step) => {
@@ -315,18 +360,13 @@ export default function IeiPhotoPage() {
       timersRef.current.push(timer);
       cumulativeDelay += step.delayMs;
     });
-  }, [previewUrl, isProcessing, clearTimers]);
+  }, [previewUrl, isProcessing, clearTimers, mode]);
 
-  /**
-   * 出力（調整後の基準写真を親データに各サイズを派生してダウンロード）。
-   * すべてブラウザ内 Canvas 処理。AI は不使用。ガイド線は含めない。
-   */
+  /** 出力（調整後の基準写真を親データに各サイズを派生してダウンロード）。AI不使用・ガイド非焼き込み。 */
   const handleExport = useCallback(async (kind: keyof IeiPhotoExports) => {
     const base = baseCanvasRef.current;
     if (!base) {
-      setError(
-        "出力できる基準写真がありません。写真をアップロードしてください。",
-      );
+      setError("出力できる基準写真がありません。写真をアップロードしてください。");
       return;
     }
     setExporting(true);
@@ -334,6 +374,7 @@ export default function IeiPhotoPage() {
     try {
       const blob = await exportFromBaseByKind(base, kind);
       downloadBlob(blob, filenameForKind(kind));
+      setHasExported(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "出力に失敗しました。");
     } finally {
@@ -345,9 +386,7 @@ export default function IeiPhotoPage() {
   const handleExportAll = useCallback(async () => {
     const base = baseCanvasRef.current;
     if (!base) {
-      setError(
-        "出力できる基準写真がありません。写真をアップロードしてください。",
-      );
+      setError("出力できる基準写真がありません。写真をアップロードしてください。");
       return;
     }
     setExporting(true);
@@ -356,11 +395,11 @@ export default function IeiPhotoPage() {
       for (const kind of IEI_PHOTO_EXPORT_ORDER) {
         const blob = await exportFromBaseByKind(base, kind);
         downloadBlob(blob, filenameForKind(kind));
-        // ブラウザの連続ダウンロード制限を避けるため少し間隔を空ける。
         await new Promise((resolve) =>
           setTimeout(resolve, BULK_DOWNLOAD_GAP_MS),
         );
       }
+      setHasExported(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "一括出力に失敗しました。");
     } finally {
@@ -368,22 +407,35 @@ export default function IeiPhotoPage() {
     }
   }, []);
 
+  const handleAdjust = useCallback(() => {
+    adjustmentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
+  const handleAdvancedAi = useCallback(() => {
+    setInfo("高度AI補正は次の開発ステップで外部画像処理APIと接続します。");
+  }, []);
+
   const canExport = hasBase && !exporting;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
-      <header className="mb-8">
-        <p className="text-sm font-semibold text-amber-700">遺影写真</p>
+      <header className="mb-6">
+        <p className="text-sm font-semibold text-amber-700">AI遺影写真</p>
         <h1 className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">
-          遺影写真作成
+          AI遺影写真生成
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-700">
-          元写真をもとに、遺影写真用の基準写真を作成します。
+          元写真をもとに、AIを活用して遺影写真用の基準写真を生成します。標準生成では本人らしさを守るため、人物の特徴をできるだけ保持しながら背景・明るさ・構図を整えます。
         </p>
       </header>
 
+      {/* 処理ステップ表示 */}
+      <div className="mb-6">
+        <IeiPhotoStepIndicator currentStep={currentStep} />
+      </div>
+
       {/* 注意書き */}
-      <section className="mb-8 rounded-lg border border-amber-200 bg-amber-50 p-4 sm:p-5">
+      <section className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 sm:p-5">
         <p className="text-sm font-semibold text-amber-800">ご利用にあたっての注意</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">
           {IEI_PHOTO_NOTICES.map((notice) => (
@@ -391,6 +443,13 @@ export default function IeiPhotoPage() {
           ))}
         </ul>
       </section>
+
+      {/* 情報メッセージ */}
+      {info && (
+        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+          {info}
+        </div>
+      )}
 
       {/* エラー表示 */}
       {error && (
@@ -411,19 +470,21 @@ export default function IeiPhotoPage() {
             onClear={handleClear}
             disabled={isProcessing}
           />
-          <IeiPhotoAdjustmentPanel
-            adjustments={adjustments}
-            onChange={handleAdjustmentChange}
-            onReset={handleResetAdjustments}
-            disabled={!imgLoaded}
-          />
+          <div ref={adjustmentRef}>
+            <IeiPhotoAdjustmentPanel
+              adjustments={adjustments}
+              onChange={handleAdjustmentChange}
+              onReset={handleResetAdjustments}
+              disabled={!imgLoaded}
+            />
+          </div>
           <IeiPhotoModeSelector
             selectedMode={mode}
             onSelect={setMode}
             disabled={isProcessing}
           />
 
-          {/* 処理開始ボタン（進行表示のデモ。出力は基準写真ができ次第すぐ可能） */}
+          {/* AI生成ボタン */}
           <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
             <button
               type="button"
@@ -431,13 +492,17 @@ export default function IeiPhotoPage() {
               disabled={!previewUrl || isProcessing}
               className="w-full rounded-lg bg-amber-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isProcessing ? "処理中…" : "処理を開始する（進行表示）"}
+              {isProcessing ? "生成中…" : "AI遺影写真を生成する"}
             </button>
             {!previewUrl && (
               <p className="mt-2 text-center text-xs text-slate-500">
                 先に写真をアップロードしてください
               </p>
             )}
+            {/* 開発用メモ（小さな注意書き） */}
+            <p className="mt-3 rounded-md bg-stone-50 px-3 py-2 text-[11px] leading-5 text-slate-500">
+              開発メモ: 現在のMVPでは、人物再生成は行わず、ブラウザ内Canvasで基準写真を生成しています。外部AI処理は次の開発ステップで接続します。
+            </p>
           </div>
 
           <IeiPhotoStatus
@@ -457,6 +522,17 @@ export default function IeiPhotoPage() {
             onToggleGuides={setShowGuides}
             completed={hasBase}
           />
+
+          {/* 生成完了後の次アクション */}
+          {isCompleted && hasBase && (
+            <IeiPhotoNextActions
+              onDownloadAll={handleExportAll}
+              onAdjust={handleAdjust}
+              onAdvancedAi={handleAdvancedAi}
+              disabled={exporting}
+            />
+          )}
+
           <IeiPhotoQualityCheck
             items={hasBase ? READY_QUALITY_CHECKS : INITIAL_QUALITY_CHECKS}
           />

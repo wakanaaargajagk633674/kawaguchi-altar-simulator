@@ -33,7 +33,8 @@ git status                  # working tree clean であること
   - `exportFromBaseByKind(base, kind)` / `exportBaseFromBase|Tesatsu|Yotsugiri|Monitor169FromBase` / `downloadBlob` / `filenameForKind`。
 - 出力寸法・ファイル名: `lib/iei-photo/export-sizes.ts`（base 1800x2400 / tesatsu 1051x1500 / yotsugiri 3000x3600 / monitor169 1920x1080）。
 - 手動補正の既定値・範囲・clamp: `lib/iei-photo/adjustments.ts`。
-- 加工モード規則（PHOTO_CORRECTION_ONLY / PARTIAL_AI_CORRECTION / FULL_AI_PORTRAIT）: `lib/iei-photo/image-rules.ts`。
+- AI生成モード規則（AI_STANDARD / AI_ADVANCED / AI_PORTRAIT）: `lib/iei-photo/image-rules.ts`。
+- AI処理プロバイダー設計（mock のみ。openai_image / external_background_api / self_hosted_worker は将来）: `lib/iei-photo/ai-generation-provider.ts`。
 - 型: `lib/iei-photo/types.ts`。将来の外部処理連携の入口: `lib/iei-photo/mock-job.ts`。
 
 ## 3. Next.js 16 の注意

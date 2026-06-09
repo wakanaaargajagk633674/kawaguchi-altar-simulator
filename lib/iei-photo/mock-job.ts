@@ -32,7 +32,7 @@ export function mockAnalyze(): IeiPhotoDiagnosis {
     overexposed: false,
     blurred: false,
     faceDetected: true,
-    recommendedMode: "PHOTO_CORRECTION_ONLY",
+    recommendedMode: "AI_STANDARD",
   };
 }
 
@@ -59,18 +59,24 @@ export type IeiPhotoMockStep = {
 };
 
 export const IEI_PHOTO_MOCK_STEPS: IeiPhotoMockStep[] = [
-  { status: "analyzing", label: "解析中", progress: 25, delayMs: 1200 },
+  { status: "analyzing", label: "写真を解析中", progress: 15, delayMs: 1000 },
+  {
+    status: "configuring",
+    label: "AI生成設定を確認中",
+    progress: 35,
+    delayMs: 1000,
+  },
   {
     status: "creating_base",
-    label: "基準写真作成中",
-    progress: 55,
-    delayMs: 1500,
+    label: "基準写真を生成中",
+    progress: 60,
+    delayMs: 1400,
   },
   {
     status: "checking_quality",
-    label: "品質チェック中",
+    label: "品質を確認中",
     progress: 85,
-    delayMs: 1200,
+    delayMs: 1100,
   },
   { status: "completed", label: "完了", progress: 100, delayMs: 0 },
 ];
