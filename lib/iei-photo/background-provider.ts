@@ -16,10 +16,12 @@ import type { IeiPhotoBackgroundSettings } from "./types";
 /** 将来差し替え可能な背景処理プロバイダー種別。 */
 export type IeiPhotoBackgroundProviderId =
   | "mock" // 現状のダミー（外部接続なし）
+  | "self_hosted_http_worker" // 自前 FastAPI worker（HTTPファイル転送）。現行の既定。
+  | "runpod_serverless_worker" // RunPod Serverless（base64 でやり取り）。将来接続。
   | "remove_bg_api" // 将来: remove.bg 等
   | "photoroom_api" // 将来: PhotoRoom 等
   | "external_background_api" // 将来: その他の背景処理API
-  | "self_hosted_worker"; // 将来: 自前GPUワーカー / ComfyUI 等
+  | "self_hosted_worker"; // 互換用エイリアス（= self_hosted_http_worker）。新規利用は非推奨。
 
 /** 背景処理の役割。 */
 export type IeiPhotoBackgroundRole =
@@ -90,57 +92,100 @@ export const mockBackgroundProvider: IeiPhotoBackgroundProvider = {
   },
 };
 
+/** 共通の宣言を組み立てるヘルパー（役割ごとの扱いは全 worker 系で共通）。 */
+function buildWorkerProvider(
+  id: IeiPhotoBackgroundProviderId,
+  removeMessage: string,
+): IeiPhotoBackgroundProvider {
+  return {
+    id,
+    supports: (role) =>
+      role === "remove_background" || role === "compose_background",
+    async process({ role }) {
+      if (role === "remove_background") {
+        return {
+          ok: true,
+          provider: id,
+          role,
+          handledByCanvas: false,
+          resultRef: null,
+          message: removeMessage,
+        };
+      }
+      return {
+        ok: true,
+        provider: id,
+        role,
+        handledByCanvas: true,
+        resultRef: null,
+        message:
+          "切り抜き済みの人物を、選択した背景とブラウザ内 Canvas で合成します。",
+      };
+    },
+  };
+}
+
 /**
- * 自前 rembg ワーカー プロバイダー。
+ * 自前 FastAPI worker（HTTP ファイル転送）プロバイダー。現行の既定。
  *
  * 実際の背景除去は、クライアントから Next.js の `/api/iei-photo/remove-background`
  * を経由して呼ぶ（クライアントは worker を直接叩かない）。実通信は
  * lib/iei-photo/background-client.ts の requestBackgroundRemoval が担当する。
- * ここでは役割と扱い（透過PNG取得→Canvas合成）を宣言する。
  */
-export const selfHostedWorkerBackgroundProvider: IeiPhotoBackgroundProvider = {
-  id: "self_hosted_worker",
-  supports: (role) =>
-    role === "remove_background" || role === "compose_background",
-  async process({ role }) {
-    if (role === "remove_background") {
-      return {
-        ok: true,
-        provider: "self_hosted_worker",
-        role,
-        handledByCanvas: false,
-        resultRef: null,
-        message:
-          "背景切り抜きは自前 rembg ワーカー（/api/iei-photo/remove-background 経由）で処理します。人物生成は行いません。",
-      };
-    }
-    return {
-      ok: true,
-      provider: "self_hosted_worker",
-      role,
-      handledByCanvas: true,
-      resultRef: null,
-      message:
-        "切り抜き済みの人物を、選択した背景とブラウザ内 Canvas で合成します。",
-    };
-  },
-};
+export const selfHostedHttpWorkerBackgroundProvider: IeiPhotoBackgroundProvider =
+  buildWorkerProvider(
+    "self_hosted_http_worker",
+    "背景切り抜きは自前 rembg ワーカー（/api/iei-photo/remove-background 経由）で処理します。人物生成は行いません。",
+  );
+
+/**
+ * RunPod Serverless worker プロバイダー。
+ *
+ * クライアントからの呼び出し口は同じ Next.js Route Handler
+ * `/api/iei-photo/remove-background`。サーバー側がプロバイダーを切り替える。
+ * RunPod では画像を base64 で `RUNPOD_ENDPOINT_URL` に POST し、
+ * `Authorization: Bearer ${RUNPOD_API_KEY}` を付与する想定（キーはサーバー側のみ）。
+ *
+ * TODO(runpod): Next.js Route Handler 側に RunPod 接続の実装を追加する
+ * （file → base64 → POST {input:{image_base64,filename}} → output.image_base64 → PNG）。
+ * 現状は型・宣言のみで、実 API 接続はしない。
+ */
+export const runpodServerlessWorkerBackgroundProvider: IeiPhotoBackgroundProvider =
+  buildWorkerProvider(
+    "runpod_serverless_worker",
+    "背景切り抜きは RunPod Serverless（/api/iei-photo/remove-background 経由）で処理する予定です。人物生成は行いません。",
+  );
+
+/**
+ * 互換用エイリアス（旧 `self_hosted_worker`）。
+ * 既存参照を壊さないために残す。中身は HTTP worker と同じ。
+ * @deprecated `selfHostedHttpWorkerBackgroundProvider` を使うこと。
+ */
+export const selfHostedWorkerBackgroundProvider: IeiPhotoBackgroundProvider =
+  buildWorkerProvider(
+    "self_hosted_worker",
+    "背景切り抜きは自前 rembg ワーカー（/api/iei-photo/remove-background 経由）で処理します。人物生成は行いません。",
+  );
 
 const PROVIDERS: Partial<
   Record<IeiPhotoBackgroundProviderId, IeiPhotoBackgroundProvider>
 > = {
   mock: mockBackgroundProvider,
-  self_hosted_worker: selfHostedWorkerBackgroundProvider,
+  self_hosted_http_worker: selfHostedHttpWorkerBackgroundProvider,
+  runpod_serverless_worker: runpodServerlessWorkerBackgroundProvider,
+  self_hosted_worker: selfHostedWorkerBackgroundProvider, // 互換用
   // remove_bg_api / photoroom_api / external_background_api は将来実装。
 };
 
 /**
  * 現在有効な背景プロバイダー。
- * 背景切り抜きは自前 rembg ワーカー方式（self_hosted_worker）を採用。
- * 実通信は Next.js Route Handler 経由（background-client.ts）。
+ * 既定は自前 FastAPI worker 方式（self_hosted_http_worker）。
+ * RunPod へ切り替える場合は将来ここを runpod_serverless_worker に変更し、
+ * Route Handler 側の接続実装（TODO）を有効化する。
+ * 実通信は Next.js Route Handler 経由（background-client.ts はルートを呼ぶだけ）。
  */
 export const ACTIVE_BACKGROUND_PROVIDER_ID: IeiPhotoBackgroundProviderId =
-  "self_hosted_worker";
+  "self_hosted_http_worker";
 
 /**
  * 背景プロバイダーを取得する。未実装IDは mock にフォールバックする。

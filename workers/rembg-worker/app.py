@@ -12,12 +12,11 @@
 """
 
 import os
-from io import BytesIO
 
 from fastapi import FastAPI, File, Header, UploadFile
 from fastapi.responses import JSONResponse, Response
-from PIL import Image
-from rembg import remove
+
+from rembg_core import remove_background_to_png_bytes
 
 app = FastAPI(title="iei-photo rembg worker", version="0.1.0")
 
@@ -57,13 +56,8 @@ async def remove_background(
             )
 
         # 背景除去のみ（人物の生成・描き直しは行わない）。
-        input_image = Image.open(BytesIO(data)).convert("RGBA")
-        output_image = remove(input_image)  # 透過PNG（人物領域のみ残る）
-
-        buffer = BytesIO()
-        output_image.save(buffer, format="PNG")
-        buffer.seek(0)
-        return Response(content=buffer.getvalue(), media_type="image/png")
+        png_bytes = remove_background_to_png_bytes(data)
+        return Response(content=png_bytes, media_type="image/png")
     except Exception as error:  # noqa: BLE001 - クライアントには簡潔なメッセージのみ返す
         return JSONResponse(
             status_code=500,
