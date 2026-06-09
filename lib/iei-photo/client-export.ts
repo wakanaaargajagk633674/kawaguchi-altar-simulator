@@ -15,7 +15,8 @@ import {
   IEI_PHOTO_EXPORT_FILENAMES,
   IEI_PHOTO_EXPORT_SIZES,
 } from "./export-sizes";
-import type { IeiPhotoExportKind } from "./types";
+import { clampAdjustments } from "./adjustments";
+import type { IeiPhotoAdjustments, IeiPhotoExportKind } from "./types";
 
 const JPEG_TYPE = "image/jpeg";
 const JPEG_QUALITY = 0.92;
@@ -25,7 +26,8 @@ const MONITOR_BG_COLOR = "#f3f4f6";
 /** 透過 PNG 対策などのための基準背景色（白） */
 const BASE_BG_COLOR = "#ffffff";
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+/** 画像 URL（ObjectURL など）から HTMLImageElement を読み込む。 */
+export function loadImageElement(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
@@ -97,6 +99,35 @@ function drawContain(
   ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
 }
 
+/**
+ * 中央 cover に zoom / offset を加味して描画する（手動トリミング）。
+ * - zoom 100 は cover と同じ。100 超で拡大。
+ * - offsetX / offsetY は描画先サイズに対するパーセント移動（中央=0）。
+ * - 画像外が見える部分は、呼び出し側で塗った背景色で埋まる。
+ */
+function drawAdjustedCover(
+  ctx: CanvasRenderingContext2D,
+  src: CanvasImageSource,
+  srcWidth: number,
+  srcHeight: number,
+  destWidth: number,
+  destHeight: number,
+  zoom: number,
+  offsetX: number,
+  offsetY: number,
+): void {
+  if (!srcWidth || !srcHeight) {
+    throw new Error("画像サイズを取得できませんでした。");
+  }
+  const baseScale = Math.max(destWidth / srcWidth, destHeight / srcHeight);
+  const scale = baseScale * (zoom / 100);
+  const drawWidth = srcWidth * scale;
+  const drawHeight = srcHeight * scale;
+  const dx = (destWidth - drawWidth) / 2 + (offsetX / 100) * destWidth;
+  const dy = (destHeight - drawHeight) / 2 + (offsetY / 100) * destHeight;
+  ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
+}
+
 function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     try {
@@ -122,26 +153,67 @@ function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 }
 
 /**
- * アップロード画像から「基準写真」（縦長 3:4）を作成する。
- * 中央基準でトリミング（cover）するのみで、AI 補正・顔再生成は行わない。
+ * 読み込み済み画像から「基準写真」（縦長 3:4）の Canvas を作成する（同期処理）。
+ *
+ * - 明るさ / コントラスト / 彩度は CanvasRenderingContext2D.filter で適用し、描画後に必ず reset する。
+ * - zoom / offsetX / offsetY を中央 cover に加味して手動トリミングする。
+ * - 画像外が見える部分は背景色（白）で埋める。AI で背景生成はしない。
+ * - 元写真のピクセルをそのまま使用し、顔・肌・髪・服などの描き直しは行わない。
+ *
+ * @param img 読み込み済みの画像要素
+ * @param adjustments 手動補正値（範囲外はクランプ、未指定は無補正）
+ * @returns 基準写真の Canvas（以降の派生処理の親データ）
+ */
+export function renderBasePhotoCanvas(
+  img: HTMLImageElement,
+  adjustments?: Partial<IeiPhotoAdjustments>,
+): HTMLCanvasElement {
+  const a = clampAdjustments(adjustments);
+  const { width, height } = IEI_PHOTO_EXPORT_SIZES.base.pixelGuide;
+  const canvas = createCanvas(width, height);
+  const ctx = get2dContext(canvas);
+
+  // 背景はフィルタ非適用で塗る。
+  ctx.filter = "none";
+  ctx.fillStyle = BASE_BG_COLOR;
+  ctx.fillRect(0, 0, width, height);
+
+  // 明るさ・コントラスト・彩度を適用して描画。
+  ctx.filter = `brightness(${a.brightness}%) contrast(${a.contrast}%) saturate(${a.saturation}%)`;
+  drawAdjustedCover(
+    ctx,
+    img,
+    img.naturalWidth,
+    img.naturalHeight,
+    width,
+    height,
+    a.zoom,
+    a.offsetX,
+    a.offsetY,
+  );
+
+  // フィルタが他描画に残らないよう必ず reset する。
+  ctx.filter = "none";
+  return canvas;
+}
+
+/**
+ * アップロード画像（File / ObjectURL）から基準写真 Canvas を作成する。
+ * 画像読み込み → renderBasePhotoCanvas を行う非同期ヘルパー。
  *
  * @param source File または ObjectURL 文字列
+ * @param adjustments 手動補正値
  * @returns 基準写真の Canvas（以降の派生処理の親データ）
  */
 export async function createBasePhotoFromImage(
   source: File | string,
+  adjustments?: Partial<IeiPhotoAdjustments>,
 ): Promise<HTMLCanvasElement> {
   const ownsUrl = typeof source !== "string";
   const url = ownsUrl ? URL.createObjectURL(source) : source;
   try {
-    const img = await loadImage(url);
-    const { width, height } = IEI_PHOTO_EXPORT_SIZES.base.pixelGuide;
-    const canvas = createCanvas(width, height);
-    const ctx = get2dContext(canvas);
-    ctx.fillStyle = BASE_BG_COLOR;
-    ctx.fillRect(0, 0, width, height);
-    drawCover(ctx, img, img.naturalWidth, img.naturalHeight, width, height);
-    return canvas;
+    const img = await loadImageElement(url);
+    return renderBasePhotoCanvas(img, adjustments);
   } finally {
     // 自前で作成した ObjectURL のみ解放（呼び出し側所有の URL は解放しない）。
     if (ownsUrl) {

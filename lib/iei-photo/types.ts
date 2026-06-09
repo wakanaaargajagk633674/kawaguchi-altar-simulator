@@ -86,6 +86,21 @@ export type IeiPhotoExportResponse = {
 };
 
 /**
+ * 手動補正の調整値（すべてブラウザ内 Canvas で適用。AI は不使用）。
+ * - brightness / contrast / saturation: パーセント（100 = 無補正）
+ * - zoom: パーセント（100 = 現在の中央 cover と同じ）
+ * - offsetX / offsetY: 基準写真キャンバスに対する移動量（パーセント, 0 = 中央）
+ */
+export type IeiPhotoAdjustments = {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+/**
  * 品質チェック項目。UI 表示用（MVP ではモック値）。
  */
 export type IeiPhotoQualityCheckItem = {
