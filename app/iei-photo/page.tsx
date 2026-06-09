@@ -12,6 +12,8 @@ import IeiPhotoNextActions from "@/components/iei-photo/IeiPhotoNextActions";
 import IeiPhotoQualityCheck from "@/components/iei-photo/IeiPhotoQualityCheck";
 import IeiPhotoExportButtons from "@/components/iei-photo/IeiPhotoExportButtons";
 import IeiPhotoAiPanel from "@/components/iei-photo/IeiPhotoAiPanel";
+import IeiPhotoAiQualityCheck from "@/components/iei-photo/IeiPhotoAiQualityCheck";
+import IeiPhotoDeAiPanel from "@/components/iei-photo/IeiPhotoDeAiPanel";
 import {
   IEI_PHOTO_DEFAULT_MODE,
   IEI_PHOTO_NOTICES,
@@ -23,6 +25,10 @@ import {
 } from "@/lib/iei-photo/ai-generation-provider";
 import { requestBackgroundRemoval } from "@/lib/iei-photo/background-client";
 import { requestAiImage } from "@/lib/iei-photo/ai-image-client";
+import {
+  applyDeAiEffectToImage,
+  deAiCanvasToPngBlob,
+} from "@/lib/iei-photo/de-ai";
 import { IEI_PHOTO_DEFAULT_BACKGROUND } from "@/lib/iei-photo/backgrounds";
 import {
   IEI_PHOTO_DEFAULT_ADJUSTMENTS,
@@ -45,6 +51,7 @@ import type {
   IeiPhotoBackgroundSettings,
   IeiPhotoBackgroundType,
   IeiPhotoClothingStyle,
+  IeiPhotoDeAiStrength,
   IeiPhotoExportKind,
   IeiPhotoExports,
   IeiPhotoGender,
@@ -182,13 +189,22 @@ export default function IeiPhotoPage() {
   const [allowAuto, setAllowAuto] = useState<boolean>(false);
   const [aiProcessing, setAiProcessing] = useState<boolean>(false);
   const [aiEnhancedUrl, setAiEnhancedUrl] = useState<string | null>(null);
+  // 脱AI処理（肌なじませ。AI生成後画像にのみ適用）
+  const [deAiStrength, setDeAiStrength] =
+    useState<IeiPhotoDeAiStrength>("standard");
+  const [deAiResult, setDeAiResult] = useState<IeiPhotoDeAiStrength | null>(
+    null,
+  );
+  const [deAiProcessing, setDeAiProcessing] = useState<boolean>(false);
+  const [deAiUrl, setDeAiUrl] = useState<string | null>(null);
 
   // 元画像 File / 読み込み済み元画像 / 切り抜き済み画像 / 基準写真（親データ）
   const fileRef = useRef<File | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const cutoutImgRef = useRef<HTMLImageElement | null>(null);
-  // AI結果画像（あれば最優先の親データ）
+  // AI結果画像 / 脱AI処理後画像（親データの優先: deAi → ai → cutout → 元画像）
   const aiEnhancedImgRef = useRef<HTMLImageElement | null>(null);
+  const deAiImgRef = useRef<HTMLImageElement | null>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 「手動で微調整する」でスクロール移動する先
   const adjustmentRef = useRef<HTMLDivElement | null>(null);
@@ -200,6 +216,7 @@ export default function IeiPhotoPage() {
   const outputUrlRef = useRef<string | null>(null);
   const cutoutUrlRef = useRef<string | null>(null);
   const aiEnhancedUrlRef = useRef<string | null>(null);
+  const deAiUrlRef = useRef<string | null>(null);
   useEffect(() => {
     previewUrlRef.current = previewUrl;
   }, [previewUrl]);
@@ -212,6 +229,9 @@ export default function IeiPhotoPage() {
   useEffect(() => {
     aiEnhancedUrlRef.current = aiEnhancedUrl;
   }, [aiEnhancedUrl]);
+  useEffect(() => {
+    deAiUrlRef.current = deAiUrl;
+  }, [deAiUrl]);
 
   // 進行中タイマーの管理
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -235,6 +255,9 @@ export default function IeiPhotoPage() {
       }
       if (aiEnhancedUrlRef.current) {
         URL.revokeObjectURL(aiEnhancedUrlRef.current);
+      }
+      if (deAiUrlRef.current) {
+        URL.revokeObjectURL(deAiUrlRef.current);
       }
     };
   }, []);
@@ -260,11 +283,15 @@ export default function IeiPhotoPage() {
       bg: IeiPhotoBackgroundSettings,
     ) => {
       // 親データの優先順位:
-      //   1. AI結果画像（高度AI補正 / AI肖像生成 / AIお任せ）
-      //   2. 背景切り抜き済み透過PNG（選択背景と合成）
-      //   3. 元画像
+      //   1. 脱AI処理後画像
+      //   2. AI結果画像（高度AI補正 / AI肖像生成 / AIお任せ）
+      //   3. 背景切り抜き済み透過PNG（選択背景と合成）
+      //   4. 元画像
       const source =
-        aiEnhancedImgRef.current ?? cutoutImgRef.current ?? imgRef.current;
+        deAiImgRef.current ??
+        aiEnhancedImgRef.current ??
+        cutoutImgRef.current ??
+        imgRef.current;
       if (!source) {
         return;
       }
@@ -310,6 +337,15 @@ export default function IeiPhotoPage() {
     });
   }, []);
 
+  const replaceDeAiUrl = useCallback((next: string | null) => {
+    setDeAiUrl((prev) => {
+      if (prev && prev !== next) {
+        URL.revokeObjectURL(prev);
+      }
+      return next;
+    });
+  }, []);
+
   const resetResults = useCallback(() => {
     setStatusState(IDLE_STATUS);
     setError(null);
@@ -320,16 +356,25 @@ export default function IeiPhotoPage() {
     setRemovingBg(false);
     baseCanvasRef.current = null;
     cutoutImgRef.current = null;
-    // AI結果も解除する（新しい写真・クリア時）。
+    // AI結果・脱AI結果も解除する（新しい写真・クリア時）。
     aiEnhancedImgRef.current = null;
+    deAiImgRef.current = null;
     setAiResultMode(null);
     setAiProcessing(false);
+    setDeAiResult(null);
+    setDeAiProcessing(false);
     setAllowPortrait(false);
     setAllowAuto(false);
     replaceOutputUrl(null);
     replaceCutoutUrl(null);
     replaceAiEnhancedUrl(null);
-  }, [replaceOutputUrl, replaceCutoutUrl, replaceAiEnhancedUrl]);
+    replaceDeAiUrl(null);
+  }, [
+    replaceOutputUrl,
+    replaceCutoutUrl,
+    replaceAiEnhancedUrl,
+    replaceDeAiUrl,
+  ]);
 
   const handleSelectFile = useCallback(
     (file: File) => {
@@ -390,6 +435,8 @@ export default function IeiPhotoPage() {
   const isCompleted = statusState.status === "completed";
   // AIモード（AI標準以外）。服装選択・お任せ・許可チェックはこのときだけ表示・有効。
   const isAiMode = mode !== "AI_STANDARD";
+  // AI結果（高度AI補正/AI肖像生成/お任せ）があるか。AI生成後チェック・脱AIパネルの表示条件。
+  const hasAiResult = aiResultMode !== null;
 
   // 現在の処理ステップ（1〜5）
   const currentStep = !previewUrl
@@ -501,6 +548,10 @@ export default function IeiPhotoPage() {
         aiEnhancedImgRef.current = img;
         replaceAiEnhancedUrl(url);
         pendingUrl = null;
+        // 新しいAI結果が出たら、古い脱AI結果は解除する（AI画像から派生し直す）。
+        deAiImgRef.current = null;
+        replaceDeAiUrl(null);
+        setDeAiResult(null);
         setAiResultMode(aiMode);
         const doneLabel =
           aiMode === "advanced"
@@ -547,6 +598,7 @@ export default function IeiPhotoPage() {
       previewKind,
       background,
       replaceAiEnhancedUrl,
+      replaceDeAiUrl,
     ],
   );
 
@@ -554,11 +606,14 @@ export default function IeiPhotoPage() {
     void runAiImage("auto");
   }, [runAiImage]);
 
-  /** AI結果を解除して通常生成（切り抜き or 元画像）に戻す。 */
+  /** AI結果を解除して通常生成（切り抜き or 元画像）に戻す。脱AI結果も解除する。 */
   const handleClearAiResult = useCallback(() => {
     aiEnhancedImgRef.current = null;
+    deAiImgRef.current = null;
     replaceAiEnhancedUrl(null);
+    replaceDeAiUrl(null);
     setAiResultMode(null);
+    setDeAiResult(null);
     setInfo("AI結果を解除しました。通常生成に戻しました。");
     void generatePreview(
       computeEffective(adjustments),
@@ -567,6 +622,81 @@ export default function IeiPhotoPage() {
     );
   }, [
     replaceAiEnhancedUrl,
+    replaceDeAiUrl,
+    generatePreview,
+    computeEffective,
+    adjustments,
+    previewKind,
+    background,
+  ]);
+
+  const handleChangeDeAiStrength = useCallback((s: IeiPhotoDeAiStrength) => {
+    setDeAiStrength(s);
+  }, []);
+
+  /**
+   * 脱AI処理（肌なじませ）。AI生成後画像にのみ適用する。
+   * 常に「AI結果画像（aiEnhancedImgRef）」から派生するため、強度変更で再実行しても累積しない。
+   * 結果は deAiImgRef（最優先の親データ）に入り、4種出力もこれから派生する。
+   */
+  const handleDeAi = useCallback(async () => {
+    const aiImg = aiEnhancedImgRef.current;
+    if (!aiImg) {
+      setError("AI結果がありません。先にAI生成を行ってください。");
+      return;
+    }
+    setDeAiProcessing(true);
+    setError(null);
+    setInfo("脱AI処理中…");
+    let pendingUrl: string | null = null;
+    try {
+      const canvas = applyDeAiEffectToImage(aiImg, deAiStrength);
+      const blob = await deAiCanvasToPngBlob(canvas);
+      const url = URL.createObjectURL(blob);
+      pendingUrl = url;
+      const img = await loadImageElement(url);
+      deAiImgRef.current = img;
+      replaceDeAiUrl(url);
+      pendingUrl = null;
+      setDeAiResult(deAiStrength);
+      setInfo("脱AI処理済み。出力に反映します。");
+      await generatePreview(
+        computeEffective(adjustments),
+        previewKind,
+        background,
+      );
+    } catch (e) {
+      if (pendingUrl) {
+        URL.revokeObjectURL(pendingUrl);
+      }
+      setInfo(null);
+      setError(e instanceof Error ? e.message : "脱AI処理に失敗しました。");
+    } finally {
+      setDeAiProcessing(false);
+    }
+  }, [
+    deAiStrength,
+    replaceDeAiUrl,
+    generatePreview,
+    computeEffective,
+    adjustments,
+    previewKind,
+    background,
+  ]);
+
+  /** 脱AI処理を解除して AI結果画像に戻す。 */
+  const handleRevertDeAi = useCallback(() => {
+    deAiImgRef.current = null;
+    replaceDeAiUrl(null);
+    setDeAiResult(null);
+    setInfo("AI結果に戻しました。");
+    void generatePreview(
+      computeEffective(adjustments),
+      previewKind,
+      background,
+    );
+  }, [
+    replaceDeAiUrl,
     generatePreview,
     computeEffective,
     adjustments,
@@ -831,6 +961,21 @@ export default function IeiPhotoPage() {
               onClearAiResult={handleClearAiResult}
               disabled={isProcessing || !imgLoaded || !hasBase}
             />
+          )}
+          {/* AI生成後チェック + 脱AI処理（AI結果があるときのみ） */}
+          {hasAiResult && (
+            <>
+              <IeiPhotoAiQualityCheck />
+              <IeiPhotoDeAiPanel
+                strength={deAiStrength}
+                onChangeStrength={handleChangeDeAiStrength}
+                onApply={handleDeAi}
+                onRevert={handleRevertDeAi}
+                appliedStrength={deAiResult}
+                processing={deAiProcessing}
+                disabled={isProcessing || aiProcessing}
+              />
+            </>
           )}
           <IeiPhotoBackgroundPanel
             settings={background}

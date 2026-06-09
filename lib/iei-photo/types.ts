@@ -141,6 +141,19 @@ export type IeiPhotoAiImageMode = "advanced" | "portrait" | "auto";
 /** 直近のAI結果の種別（無ければ null）。 */
 export type IeiPhotoAiResultMode = IeiPhotoAiImageMode | null;
 
+/** 脱AI処理（肌なじませ）の強度。 */
+export type IeiPhotoDeAiStrength = "light" | "standard" | "strong";
+
+/**
+ * AI生成後チェック項目（目視確認用）。
+ * 現状は自動判定せず「要確認」を表示するだけ。将来、自動判定で status を更新できる設計。
+ */
+export type IeiPhotoAiCheckItem = {
+  label: string;
+  status: "needs_review" | "ok" | "warning";
+  note: string;
+};
+
 /**
  * 背景設定。
  * 切り抜いた人物を、選択した背景の上に Canvas 合成して出力する。
