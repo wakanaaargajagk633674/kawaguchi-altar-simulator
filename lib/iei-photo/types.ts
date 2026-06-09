@@ -120,6 +120,17 @@ export type IeiPhotoClothingStyle =
   | "casual"; // カジュアル
 
 /**
+ * 体勢・向き（AIモードのみ）。AI生成プロンプトに反映する。
+ * 通常生成（AI標準 / rembg+Canvas）では使用しない。
+ */
+export type IeiPhotoPose =
+  | "none" // 指定なし
+  | "front" // 正面を向く
+  | "slight_right" // やや右向き
+  | "slight_left" // やや左向き
+  | "upright"; // 姿勢を正す
+
+/**
  * AI画像処理のモード（/api/iei-photo/ai-image に渡す）。
  * - advanced: 高度AI補正
  * - portrait: AI肖像生成

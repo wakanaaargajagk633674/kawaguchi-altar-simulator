@@ -347,11 +347,22 @@ export async function exportMonitor169FromBase(
   base: HTMLCanvasElement,
   background?: IeiPhotoBackgroundSettings,
   bgImage?: HTMLImageElement | null,
+  opts?: { fillFromBase?: boolean },
 ): Promise<Blob> {
   const { width, height } = IEI_PHOTO_EXPORT_SIZES.monitor169.pixelGuide;
   const canvas = createCanvas(width, height);
   const ctx = get2dContext(canvas);
-  fillBackground(ctx, width, height, background, bgImage);
+  if (opts?.fillFromBase) {
+    // AIモード: 雲固定の背景を使わず、基準写真（AI生成結果）自体をぼかして全面に敷く。
+    // 余白も AI 生成の見た目に馴染ませる（横長を AI 生成するわけではない）。
+    ctx.fillStyle = BASE_BG_COLOR;
+    ctx.fillRect(0, 0, width, height);
+    ctx.filter = "blur(28px)";
+    drawCover(ctx, base, base.width, base.height, width, height);
+    ctx.filter = "none";
+  } else {
+    fillBackground(ctx, width, height, background, bgImage);
+  }
   drawContain(ctx, base, base.width, base.height, width, height);
   return canvasToJpegBlob(canvas);
 }
@@ -364,6 +375,7 @@ export async function exportFromBaseByKind(
   base: HTMLCanvasElement,
   kind: IeiPhotoExportKind,
   background?: IeiPhotoBackgroundSettings,
+  opts?: { monitorFillFromBase?: boolean },
 ): Promise<Blob> {
   switch (kind) {
     case "base":
@@ -373,7 +385,13 @@ export async function exportFromBaseByKind(
     case "yotsugiri":
       return exportYotsugiriFromBase(base);
     case "monitor169": {
-      // 16:9 の余白に敷く写真背景（横）を読み込む（写真系以外は null）。
+      // AIモードでは雲固定背景を使わず、基準写真（AI結果）をぼかして余白に敷く。
+      if (opts?.monitorFillFromBase) {
+        return exportMonitor169FromBase(base, background, null, {
+          fillFromBase: true,
+        });
+      }
+      // 通常時は 16:9 の余白に写真背景（横）を敷く（写真系以外は null）。
       const bgImage = await resolveBackgroundImage(background, "wide");
       return exportMonitor169FromBase(base, background, bgImage);
     }
@@ -398,10 +416,11 @@ export function filenameForKind(kind: IeiPhotoExportKind): string {
 export async function exportAllZipFromBase(
   base: HTMLCanvasElement,
   background?: IeiPhotoBackgroundSettings,
+  opts?: { monitorFillFromBase?: boolean },
 ): Promise<Blob> {
   const entries: ZipEntry[] = [];
   for (const kind of IEI_PHOTO_EXPORT_ORDER) {
-    const blob = await exportFromBaseByKind(base, kind, background);
+    const blob = await exportFromBaseByKind(base, kind, background, opts);
     const data = new Uint8Array(await blob.arrayBuffer());
     entries.push({ name: filenameForKind(kind), data });
   }

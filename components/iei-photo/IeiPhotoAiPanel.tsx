@@ -4,11 +4,14 @@ import { cn } from "@/lib/simulatorUtils";
 import {
   IEI_PHOTO_CLOTHING_LABELS,
   IEI_PHOTO_CLOTHING_ORDER,
+  IEI_PHOTO_POSE_LABELS,
+  IEI_PHOTO_POSE_ORDER,
 } from "@/lib/iei-photo/ai-prompts";
 import type {
   IeiPhotoAiResultMode,
   IeiPhotoClothingStyle,
   IeiPhotoMode,
+  IeiPhotoPose,
 } from "@/lib/iei-photo/types";
 
 type IeiPhotoAiPanelProps = {
@@ -16,6 +19,9 @@ type IeiPhotoAiPanelProps = {
   mode: IeiPhotoMode;
   clothingStyle: IeiPhotoClothingStyle;
   onChangeClothing: (style: IeiPhotoClothingStyle) => void;
+  /** 体勢・向き（AIモードのみ）。 */
+  pose: IeiPhotoPose;
+  onChangePose: (pose: IeiPhotoPose) => void;
   /** AI肖像生成の許可（mode=AI_PORTRAIT のとき必須）。 */
   allowPortrait: boolean;
   onTogglePortrait: (next: boolean) => void;
@@ -54,6 +60,8 @@ export default function IeiPhotoAiPanel({
   mode,
   clothingStyle,
   onChangeClothing,
+  pose,
+  onChangePose,
   allowPortrait,
   onTogglePortrait,
   allowAuto,
@@ -103,6 +111,38 @@ export default function IeiPhotoAiPanel({
             </button>
           );
         })}
+      </div>
+
+      {/* 体勢・向き（AIモードのみ） */}
+      <div className="mt-4">
+        <p className="text-sm font-semibold text-slate-900">体勢・向き（AIモードのみ）</p>
+        <p className="mt-1 text-xs leading-5 text-slate-600">
+          AI生成時に体勢や顔の向きを指定できます（例: 正面を向く）。通常生成では反映されません。
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {IEI_PHOTO_POSE_ORDER.map((p) => {
+            const isActive = p === pose;
+            return (
+              <button
+                key={p}
+                type="button"
+                aria-pressed={isActive}
+                disabled={busy}
+                onClick={() => onChangePose(p)}
+                className={cn(
+                  "rounded-lg border p-2 text-center text-sm font-semibold transition",
+                  "focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                  isActive
+                    ? "border-amber-600 bg-amber-100 text-slate-950"
+                    : "border-stone-200 bg-white text-slate-700 hover:bg-stone-50",
+                )}
+              >
+                {IEI_PHOTO_POSE_LABELS[p]}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* AI肖像生成の許可（肖像モードのみ） */}
