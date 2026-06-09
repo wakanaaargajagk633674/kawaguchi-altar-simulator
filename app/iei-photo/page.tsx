@@ -175,6 +175,8 @@ export default function IeiPhotoPage() {
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 「手動で微調整する」でスクロール移動する先
   const adjustmentRef = useRef<HTMLDivElement | null>(null);
+  // 切り抜き・生成の完了時にプレビュー（元画像＋切り抜き画像）へ移動する先
+  const previewRef = useRef<HTMLDivElement | null>(null);
 
   // ObjectURL の最新値を保持し、アンマウント時に解放するための ref
   const previewUrlRef = useRef<string | null>(null);
@@ -386,6 +388,14 @@ export default function IeiPhotoPage() {
     computeEffective,
   ]);
 
+  // 生成が完了したら、結果（元画像＋切り抜き画像）へ自動スクロールする
+  // （操作ボタンと結果プレビューが離れていても、見るための手動スクロールを不要にする）。
+  useEffect(() => {
+    if (isCompleted && hasBase) {
+      previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [isCompleted, hasBase]);
+
   /**
    * 「AI遺影写真を生成する」。
    * 進行表示: 写真を解析中 → AI生成設定を確認中 → 基準写真を生成中 → 品質を確認中 → 完了。
@@ -510,6 +520,10 @@ export default function IeiPhotoPage() {
       setHasCutout(true);
       setInfo("背景切り抜き済み。選択した背景と合成して出力します。");
       void generatePreview(computeEffective(adjustments), previewKind, background);
+      // 切り抜き直後、結果（元画像＋切り抜き画像）を見るための手動スクロールを不要にする。
+      requestAnimationFrame(() => {
+        previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (e) {
       // 失敗時は古い切り抜き画像を残さない。
       if (pendingUrl) {
@@ -641,7 +655,7 @@ export default function IeiPhotoPage() {
           />
         </div>
 
-        <div className="grid gap-6">
+        <div ref={previewRef} className="grid gap-6 scroll-mt-4">
           <IeiPhotoPreview
             beforeUrl={previewUrl}
             outputUrl={outputUrl}
