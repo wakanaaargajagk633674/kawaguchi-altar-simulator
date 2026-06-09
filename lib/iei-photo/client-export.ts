@@ -1,0 +1,353 @@
+/**
+ * ブラウザ内 Canvas での画像書き出しユーティリティ
+ *
+ * 重要方針:
+ * - すべてブラウザ内の Canvas 処理のみ（サーバー・Vercel Functions では処理しない）。
+ * - AI 生成・顔再生成・AI 補正は一切行わない。元写真のピクセルをそのまま使用した
+ *   トリミング・サイズ変更・配置のみ。
+ * - 手札・四つ切り・16:9 は、必ず「基準写真（base canvas）」を親データとして派生させる。
+ *
+ * このファイルはブラウザでのみ実行される想定です（document / Image / canvas を使用）。
+ * モジュール読み込み時には何も実行しないため、SSR / ビルドでも安全です。
+ */
+
+import {
+  IEI_PHOTO_EXPORT_FILENAMES,
+  IEI_PHOTO_EXPORT_SIZES,
+} from "./export-sizes";
+import { clampAdjustments } from "./adjustments";
+import {
+  IEI_PHOTO_BACKGROUND_GRADIENT,
+  IEI_PHOTO_BACKGROUND_SOLID_COLORS,
+  IEI_PHOTO_DEFAULT_BACKGROUND,
+} from "./backgrounds";
+import type {
+  IeiPhotoAdjustments,
+  IeiPhotoBackgroundSettings,
+  IeiPhotoExportKind,
+} from "./types";
+
+const JPEG_TYPE = "image/jpeg";
+const JPEG_QUALITY = 0.92;
+
+/** 透過 PNG 対策などのための基準背景色（白） */
+const BASE_BG_COLOR = "#ffffff";
+
+/**
+ * 背景設定に応じて Canvas 全面を塗る（フィルタ非適用）。
+ * 単色 or 縦方向グラデーション。人物切り抜きは行わず、余白/合成領域の塗りのみ。
+ */
+function fillBackground(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  background?: IeiPhotoBackgroundSettings,
+): void {
+  const settings = background ?? IEI_PHOTO_DEFAULT_BACKGROUND;
+  ctx.filter = "none";
+  if (settings.type === "gradient") {
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, IEI_PHOTO_BACKGROUND_GRADIENT.from);
+    gradient.addColorStop(1, IEI_PHOTO_BACKGROUND_GRADIENT.to);
+    ctx.fillStyle = gradient;
+  } else {
+    ctx.fillStyle = IEI_PHOTO_BACKGROUND_SOLID_COLORS[settings.type];
+  }
+  ctx.fillRect(0, 0, width, height);
+}
+
+/** 画像 URL（ObjectURL など）から HTMLImageElement を読み込む。 */
+export function loadImageElement(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () =>
+      reject(new Error("画像の読み込みに失敗しました。別の画像でお試しください。"));
+    img.decoding = "async";
+    img.src = src;
+  });
+}
+
+function createCanvas(width: number, height: number): HTMLCanvasElement {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw new Error("出力サイズが不正です。");
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function get2dContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Canvas の描画コンテキストを取得できませんでした。");
+  }
+  // 拡大・縮小時の品質を確保
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  return ctx;
+}
+
+/** 中央基準のトリミング（cover: 描画先を埋め、はみ出しは切り取る）。 */
+function drawCover(
+  ctx: CanvasRenderingContext2D,
+  src: CanvasImageSource,
+  srcWidth: number,
+  srcHeight: number,
+  destWidth: number,
+  destHeight: number,
+): void {
+  if (!srcWidth || !srcHeight) {
+    throw new Error("画像サイズを取得できませんでした。");
+  }
+  const scale = Math.max(destWidth / srcWidth, destHeight / srcHeight);
+  const drawWidth = srcWidth * scale;
+  const drawHeight = srcHeight * scale;
+  const dx = (destWidth - drawWidth) / 2;
+  const dy = (destHeight - drawHeight) / 2;
+  ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
+}
+
+/** 中央配置（contain: 全体が収まるように縮小して中央へ。余白が出る）。 */
+function drawContain(
+  ctx: CanvasRenderingContext2D,
+  src: CanvasImageSource,
+  srcWidth: number,
+  srcHeight: number,
+  destWidth: number,
+  destHeight: number,
+): void {
+  if (!srcWidth || !srcHeight) {
+    throw new Error("画像サイズを取得できませんでした。");
+  }
+  const scale = Math.min(destWidth / srcWidth, destHeight / srcHeight);
+  const drawWidth = srcWidth * scale;
+  const drawHeight = srcHeight * scale;
+  const dx = (destWidth - drawWidth) / 2;
+  const dy = (destHeight - drawHeight) / 2;
+  ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
+}
+
+/**
+ * 中央 cover に zoom / offset を加味して描画する（手動トリミング）。
+ * - zoom 100 は cover と同じ。100 超で拡大。
+ * - offsetX / offsetY は描画先サイズに対するパーセント移動（中央=0）。
+ * - 画像外が見える部分は、呼び出し側で塗った背景色で埋まる。
+ */
+function drawAdjustedCover(
+  ctx: CanvasRenderingContext2D,
+  src: CanvasImageSource,
+  srcWidth: number,
+  srcHeight: number,
+  destWidth: number,
+  destHeight: number,
+  zoom: number,
+  offsetX: number,
+  offsetY: number,
+): void {
+  if (!srcWidth || !srcHeight) {
+    throw new Error("画像サイズを取得できませんでした。");
+  }
+  const baseScale = Math.max(destWidth / srcWidth, destHeight / srcHeight);
+  const scale = baseScale * (zoom / 100);
+  const drawWidth = srcWidth * scale;
+  const drawHeight = srcHeight * scale;
+  const dx = (destWidth - drawWidth) / 2 + (offsetX / 100) * destWidth;
+  const dy = (destHeight - drawHeight) / 2 + (offsetY / 100) * destHeight;
+  ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
+}
+
+function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("画像の書き出しに失敗しました。"));
+          }
+        },
+        JPEG_TYPE,
+        JPEG_QUALITY,
+      );
+    } catch {
+      reject(
+        new Error(
+          "画像の書き出し中にエラーが発生しました。画像が大きすぎる可能性があります。",
+        ),
+      );
+    }
+  });
+}
+
+/**
+ * 読み込み済み画像から「基準写真」（縦長 3:4）の Canvas を作成する（同期処理）。
+ *
+ * - 明るさ / コントラスト / 彩度は CanvasRenderingContext2D.filter で適用し、描画後に必ず reset する。
+ * - zoom / offsetX / offsetY を中央 cover に加味して手動トリミングする。
+ * - 画像外が見える部分は背景色（白）で埋める。AI で背景生成はしない。
+ * - 元写真のピクセルをそのまま使用し、顔・肌・髪・服などの描き直しは行わない。
+ *
+ * @param img 読み込み済みの画像要素
+ * @param adjustments 手動補正値（範囲外はクランプ、未指定は無補正）
+ * @returns 基準写真の Canvas（以降の派生処理の親データ）
+ */
+export function renderBasePhotoCanvas(
+  img: HTMLImageElement,
+  adjustments?: Partial<IeiPhotoAdjustments>,
+  background?: IeiPhotoBackgroundSettings,
+): HTMLCanvasElement {
+  const a = clampAdjustments(adjustments);
+  const { width, height } = IEI_PHOTO_EXPORT_SIZES.base.pixelGuide;
+  const canvas = createCanvas(width, height);
+  const ctx = get2dContext(canvas);
+
+  // 背景はフィルタ非適用で塗る（選択した背景タイプを反映。人物切り抜きはしない）。
+  fillBackground(ctx, width, height, background);
+
+  // 明るさ・コントラスト・彩度を適用して描画。
+  ctx.filter = `brightness(${a.brightness}%) contrast(${a.contrast}%) saturate(${a.saturation}%)`;
+  drawAdjustedCover(
+    ctx,
+    img,
+    img.naturalWidth,
+    img.naturalHeight,
+    width,
+    height,
+    a.zoom,
+    a.offsetX,
+    a.offsetY,
+  );
+
+  // フィルタが他描画に残らないよう必ず reset する。
+  ctx.filter = "none";
+  return canvas;
+}
+
+/**
+ * アップロード画像（File / ObjectURL）から基準写真 Canvas を作成する。
+ * 画像読み込み → renderBasePhotoCanvas を行う非同期ヘルパー。
+ *
+ * @param source File または ObjectURL 文字列
+ * @param adjustments 手動補正値
+ * @returns 基準写真の Canvas（以降の派生処理の親データ）
+ */
+export async function createBasePhotoFromImage(
+  source: File | string,
+  adjustments?: Partial<IeiPhotoAdjustments>,
+  background?: IeiPhotoBackgroundSettings,
+): Promise<HTMLCanvasElement> {
+  const ownsUrl = typeof source !== "string";
+  const url = ownsUrl ? URL.createObjectURL(source) : source;
+  try {
+    const img = await loadImageElement(url);
+    return renderBasePhotoCanvas(img, adjustments, background);
+  } finally {
+    // 自前で作成した ObjectURL のみ解放（呼び出し側所有の URL は解放しない）。
+    if (ownsUrl) {
+      URL.revokeObjectURL(url);
+    }
+  }
+}
+
+/** 基準写真そのものを JPEG 出力する。 */
+export async function exportBaseFromBase(
+  base: HTMLCanvasElement,
+): Promise<Blob> {
+  return canvasToJpegBlob(base);
+}
+
+/** 基準写真から手札サイズ（縦長, cover）を書き出す。 */
+export async function exportTesatsuFromBase(
+  base: HTMLCanvasElement,
+): Promise<Blob> {
+  const { width, height } = IEI_PHOTO_EXPORT_SIZES.tesatsu.pixelGuide;
+  const canvas = createCanvas(width, height);
+  const ctx = get2dContext(canvas);
+  ctx.fillStyle = BASE_BG_COLOR;
+  ctx.fillRect(0, 0, width, height);
+  drawCover(ctx, base, base.width, base.height, width, height);
+  return canvasToJpegBlob(canvas);
+}
+
+/** 基準写真から四つ切りサイズ（縦長, cover）を書き出す。 */
+export async function exportYotsugiriFromBase(
+  base: HTMLCanvasElement,
+): Promise<Blob> {
+  const { width, height } = IEI_PHOTO_EXPORT_SIZES.yotsugiri.pixelGuide;
+  const canvas = createCanvas(width, height);
+  const ctx = get2dContext(canvas);
+  ctx.fillStyle = BASE_BG_COLOR;
+  ctx.fillRect(0, 0, width, height);
+  drawCover(ctx, base, base.width, base.height, width, height);
+  return canvasToJpegBlob(canvas);
+}
+
+/**
+ * 16:9 モニター用を書き出す。
+ * 1920x1080 の横長キャンバスに、基準写真を縦長のまま中央へ contain 配置。
+ * 左右余白は選択した背景タイプで埋めるだけ。AI で背景・服を生成しない。
+ */
+export async function exportMonitor169FromBase(
+  base: HTMLCanvasElement,
+  background?: IeiPhotoBackgroundSettings,
+): Promise<Blob> {
+  const { width, height } = IEI_PHOTO_EXPORT_SIZES.monitor169.pixelGuide;
+  const canvas = createCanvas(width, height);
+  const ctx = get2dContext(canvas);
+  fillBackground(ctx, width, height, background);
+  drawContain(ctx, base, base.width, base.height, width, height);
+  return canvasToJpegBlob(canvas);
+}
+
+/**
+ * 種別に応じて基準写真から派生 Blob を生成する。
+ * 背景設定は 16:9 の余白に反映する（base/手札/四つ切りは基準写真側に既に反映済み）。
+ */
+export async function exportFromBaseByKind(
+  base: HTMLCanvasElement,
+  kind: IeiPhotoExportKind,
+  background?: IeiPhotoBackgroundSettings,
+): Promise<Blob> {
+  switch (kind) {
+    case "base":
+      return exportBaseFromBase(base);
+    case "tesatsu":
+      return exportTesatsuFromBase(base);
+    case "yotsugiri":
+      return exportYotsugiriFromBase(base);
+    case "monitor169":
+      return exportMonitor169FromBase(base, background);
+    default: {
+      // 網羅性チェック
+      const _exhaustive: never = kind;
+      throw new Error(`未知の出力種別です: ${String(_exhaustive)}`);
+    }
+  }
+}
+
+/** 種別に対応する出力ファイル名を返す。 */
+export function filenameForKind(kind: IeiPhotoExportKind): string {
+  return IEI_PHOTO_EXPORT_FILENAMES[kind];
+}
+
+/**
+ * Blob をダウンロードさせる。
+ * 生成した ObjectURL はダウンロード開始後に解放する。
+ */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    // クリック直後に revoke するとダウンロードが中断される場合があるため、少し遅らせる。
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+}
