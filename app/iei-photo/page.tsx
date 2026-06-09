@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import IeiPhotoUploader from "@/components/iei-photo/IeiPhotoUploader";
 import IeiPhotoModeSelector from "@/components/iei-photo/IeiPhotoModeSelector";
+import IeiPhotoBackgroundPanel from "@/components/iei-photo/IeiPhotoBackgroundPanel";
 import IeiPhotoAdjustmentPanel from "@/components/iei-photo/IeiPhotoAdjustmentPanel";
 import IeiPhotoPreview from "@/components/iei-photo/IeiPhotoPreview";
 import IeiPhotoStatus from "@/components/iei-photo/IeiPhotoStatus";
@@ -20,6 +21,8 @@ import {
   getAiGenerationProvider,
   IEI_PHOTO_MODE_TO_ROLE,
 } from "@/lib/iei-photo/ai-generation-provider";
+import { getBackgroundProvider } from "@/lib/iei-photo/background-provider";
+import { IEI_PHOTO_DEFAULT_BACKGROUND } from "@/lib/iei-photo/backgrounds";
 import {
   IEI_PHOTO_DEFAULT_ADJUSTMENTS,
   type IeiPhotoAdjustmentKey,
@@ -33,6 +36,8 @@ import {
 } from "@/lib/iei-photo/client-export";
 import type {
   IeiPhotoAdjustments,
+  IeiPhotoBackgroundSettings,
+  IeiPhotoBackgroundType,
   IeiPhotoExportKind,
   IeiPhotoExports,
   IeiPhotoJobStatus,
@@ -111,8 +116,8 @@ const READY_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
     key: "backgroundNaturalness",
     label: "背景自然さチェック",
     status: "pending",
-    description: "背景自然さの自動判定は行っていません。",
-    note: "未実装",
+    description: "背景処理APIが未接続のため、背景自然さの自動判定は行っていません。",
+    note: "未実装 / 背景処理API未接続",
   },
 ];
 
@@ -146,6 +151,9 @@ export default function IeiPhotoPage() {
   );
   const [previewKind, setPreviewKind] = useState<IeiPhotoExportKind>("base");
   const [showGuides, setShowGuides] = useState<boolean>(true);
+  const [background, setBackground] = useState<IeiPhotoBackgroundSettings>(
+    IEI_PHOTO_DEFAULT_BACKGROUND,
+  );
   const [statusState, setStatusState] = useState<StatusState>(IDLE_STATUS);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -205,17 +213,21 @@ export default function IeiPhotoPage() {
    * （AI標準生成の仮実装）。
    */
   const generatePreview = useCallback(
-    async (adj: IeiPhotoAdjustments, kind: IeiPhotoExportKind) => {
+    async (
+      adj: IeiPhotoAdjustments,
+      kind: IeiPhotoExportKind,
+      bg: IeiPhotoBackgroundSettings,
+    ) => {
       const img = imgRef.current;
       if (!img) {
         return;
       }
       try {
-        const canvas = renderBasePhotoCanvas(img, adj);
+        const canvas = renderBasePhotoCanvas(img, adj, bg);
         baseCanvasRef.current = canvas;
         setHasBase(true);
         setError(null);
-        const blob = await exportFromBaseByKind(canvas, kind);
+        const blob = await exportFromBaseByKind(canvas, kind, bg);
         replaceOutputUrl(URL.createObjectURL(blob));
       } catch (e) {
         baseCanvasRef.current = null;
@@ -259,13 +271,17 @@ export default function IeiPhotoPage() {
         .then((img) => {
           imgRef.current = img;
           setImgLoaded(true);
-          void generatePreview(IEI_PHOTO_DEFAULT_ADJUSTMENTS, previewKind);
+          void generatePreview(
+            IEI_PHOTO_DEFAULT_ADJUSTMENTS,
+            previewKind,
+            background,
+          );
         })
         .catch(() => {
           setError("画像の読み込みに失敗しました。別の画像でお試しください。");
         });
     },
-    [clearTimers, resetResults, generatePreview, previewKind],
+    [clearTimers, resetResults, generatePreview, previewKind, background],
   );
 
   const handleClear = useCallback(() => {
@@ -317,10 +333,10 @@ export default function IeiPhotoPage() {
       return;
     }
     const handle = setTimeout(() => {
-      void generatePreview(adjustments, previewKind);
+      void generatePreview(adjustments, previewKind, background);
     }, PREVIEW_DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [adjustments, previewKind, imgLoaded, generatePreview]);
+  }, [adjustments, previewKind, background, imgLoaded, generatePreview]);
 
   /**
    * 「AI遺影写真を生成する」。
@@ -372,7 +388,7 @@ export default function IeiPhotoPage() {
     setExporting(true);
     setError(null);
     try {
-      const blob = await exportFromBaseByKind(base, kind);
+      const blob = await exportFromBaseByKind(base, kind, background);
       downloadBlob(blob, filenameForKind(kind));
       setHasExported(true);
     } catch (e) {
@@ -380,7 +396,7 @@ export default function IeiPhotoPage() {
     } finally {
       setExporting(false);
     }
-  }, []);
+  }, [background]);
 
   /** すべての出力サイズを順番にダウンロードする。 */
   const handleExportAll = useCallback(async () => {
@@ -393,7 +409,7 @@ export default function IeiPhotoPage() {
     setError(null);
     try {
       for (const kind of IEI_PHOTO_EXPORT_ORDER) {
-        const blob = await exportFromBaseByKind(base, kind);
+        const blob = await exportFromBaseByKind(base, kind, background);
         downloadBlob(blob, filenameForKind(kind));
         await new Promise((resolve) =>
           setTimeout(resolve, BULK_DOWNLOAD_GAP_MS),
@@ -405,7 +421,7 @@ export default function IeiPhotoPage() {
     } finally {
       setExporting(false);
     }
-  }, []);
+  }, [background]);
 
   const handleAdjust = useCallback(() => {
     adjustmentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -414,6 +430,20 @@ export default function IeiPhotoPage() {
   const handleAdvancedAi = useCallback(() => {
     setInfo("高度AI補正は次の開発ステップで外部画像処理APIと接続します。");
   }, []);
+
+  const handleBackgroundType = useCallback((type: IeiPhotoBackgroundType) => {
+    setBackground({ type });
+  }, []);
+
+  // 背景切り抜き（未接続）。プロバイダー（現状 mock）にメッセージを問い合わせて表示する。
+  const handleRemoveBackground = useCallback(async () => {
+    const provider = getBackgroundProvider();
+    const result = await provider.process({
+      role: "remove_background",
+      settings: background,
+    });
+    setInfo(result.message);
+  }, [background]);
 
   const canExport = hasBase && !exporting;
 
@@ -470,6 +500,17 @@ export default function IeiPhotoPage() {
             onClear={handleClear}
             disabled={isProcessing}
           />
+          <IeiPhotoModeSelector
+            selectedMode={mode}
+            onSelect={setMode}
+            disabled={isProcessing}
+          />
+          <IeiPhotoBackgroundPanel
+            settings={background}
+            onChangeType={handleBackgroundType}
+            onRemoveBackground={handleRemoveBackground}
+            disabled={isProcessing}
+          />
           <div ref={adjustmentRef}>
             <IeiPhotoAdjustmentPanel
               adjustments={adjustments}
@@ -478,11 +519,6 @@ export default function IeiPhotoPage() {
               disabled={!imgLoaded}
             />
           </div>
-          <IeiPhotoModeSelector
-            selectedMode={mode}
-            onSelect={setMode}
-            disabled={isProcessing}
-          />
 
           {/* AI生成ボタン */}
           <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">

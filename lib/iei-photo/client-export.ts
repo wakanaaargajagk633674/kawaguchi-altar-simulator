@@ -16,15 +16,45 @@ import {
   IEI_PHOTO_EXPORT_SIZES,
 } from "./export-sizes";
 import { clampAdjustments } from "./adjustments";
-import type { IeiPhotoAdjustments, IeiPhotoExportKind } from "./types";
+import {
+  IEI_PHOTO_BACKGROUND_GRADIENT,
+  IEI_PHOTO_BACKGROUND_SOLID_COLORS,
+  IEI_PHOTO_DEFAULT_BACKGROUND,
+} from "./backgrounds";
+import type {
+  IeiPhotoAdjustments,
+  IeiPhotoBackgroundSettings,
+  IeiPhotoExportKind,
+} from "./types";
 
 const JPEG_TYPE = "image/jpeg";
 const JPEG_QUALITY = 0.92;
 
-/** 16:9 配置時の余白背景色（薄いグレー無地） */
-const MONITOR_BG_COLOR = "#f3f4f6";
 /** 透過 PNG 対策などのための基準背景色（白） */
 const BASE_BG_COLOR = "#ffffff";
+
+/**
+ * 背景設定に応じて Canvas 全面を塗る（フィルタ非適用）。
+ * 単色 or 縦方向グラデーション。人物切り抜きは行わず、余白/合成領域の塗りのみ。
+ */
+function fillBackground(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  background?: IeiPhotoBackgroundSettings,
+): void {
+  const settings = background ?? IEI_PHOTO_DEFAULT_BACKGROUND;
+  ctx.filter = "none";
+  if (settings.type === "gradient") {
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, IEI_PHOTO_BACKGROUND_GRADIENT.from);
+    gradient.addColorStop(1, IEI_PHOTO_BACKGROUND_GRADIENT.to);
+    ctx.fillStyle = gradient;
+  } else {
+    ctx.fillStyle = IEI_PHOTO_BACKGROUND_SOLID_COLORS[settings.type];
+  }
+  ctx.fillRect(0, 0, width, height);
+}
 
 /** 画像 URL（ObjectURL など）から HTMLImageElement を読み込む。 */
 export function loadImageElement(src: string): Promise<HTMLImageElement> {
@@ -167,16 +197,15 @@ function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 export function renderBasePhotoCanvas(
   img: HTMLImageElement,
   adjustments?: Partial<IeiPhotoAdjustments>,
+  background?: IeiPhotoBackgroundSettings,
 ): HTMLCanvasElement {
   const a = clampAdjustments(adjustments);
   const { width, height } = IEI_PHOTO_EXPORT_SIZES.base.pixelGuide;
   const canvas = createCanvas(width, height);
   const ctx = get2dContext(canvas);
 
-  // 背景はフィルタ非適用で塗る。
-  ctx.filter = "none";
-  ctx.fillStyle = BASE_BG_COLOR;
-  ctx.fillRect(0, 0, width, height);
+  // 背景はフィルタ非適用で塗る（選択した背景タイプを反映。人物切り抜きはしない）。
+  fillBackground(ctx, width, height, background);
 
   // 明るさ・コントラスト・彩度を適用して描画。
   ctx.filter = `brightness(${a.brightness}%) contrast(${a.contrast}%) saturate(${a.saturation}%)`;
@@ -208,12 +237,13 @@ export function renderBasePhotoCanvas(
 export async function createBasePhotoFromImage(
   source: File | string,
   adjustments?: Partial<IeiPhotoAdjustments>,
+  background?: IeiPhotoBackgroundSettings,
 ): Promise<HTMLCanvasElement> {
   const ownsUrl = typeof source !== "string";
   const url = ownsUrl ? URL.createObjectURL(source) : source;
   try {
     const img = await loadImageElement(url);
-    return renderBasePhotoCanvas(img, adjustments);
+    return renderBasePhotoCanvas(img, adjustments, background);
   } finally {
     // 自前で作成した ObjectURL のみ解放（呼び出し側所有の URL は解放しない）。
     if (ownsUrl) {
@@ -258,24 +288,28 @@ export async function exportYotsugiriFromBase(
 /**
  * 16:9 モニター用を書き出す。
  * 1920x1080 の横長キャンバスに、基準写真を縦長のまま中央へ contain 配置。
- * 余白は無地（薄いグレー）で埋めるだけ。AI で背景・服を生成しない。
+ * 左右余白は選択した背景タイプで埋めるだけ。AI で背景・服を生成しない。
  */
 export async function exportMonitor169FromBase(
   base: HTMLCanvasElement,
+  background?: IeiPhotoBackgroundSettings,
 ): Promise<Blob> {
   const { width, height } = IEI_PHOTO_EXPORT_SIZES.monitor169.pixelGuide;
   const canvas = createCanvas(width, height);
   const ctx = get2dContext(canvas);
-  ctx.fillStyle = MONITOR_BG_COLOR;
-  ctx.fillRect(0, 0, width, height);
+  fillBackground(ctx, width, height, background);
   drawContain(ctx, base, base.width, base.height, width, height);
   return canvasToJpegBlob(canvas);
 }
 
-/** 種別に応じて基準写真から派生 Blob を生成する。 */
+/**
+ * 種別に応じて基準写真から派生 Blob を生成する。
+ * 背景設定は 16:9 の余白に反映する（base/手札/四つ切りは基準写真側に既に反映済み）。
+ */
 export async function exportFromBaseByKind(
   base: HTMLCanvasElement,
   kind: IeiPhotoExportKind,
+  background?: IeiPhotoBackgroundSettings,
 ): Promise<Blob> {
   switch (kind) {
     case "base":
@@ -285,7 +319,7 @@ export async function exportFromBaseByKind(
     case "yotsugiri":
       return exportYotsugiriFromBase(base);
     case "monitor169":
-      return exportMonitor169FromBase(base);
+      return exportMonitor169FromBase(base, background);
     default: {
       // 網羅性チェック
       const _exhaustive: never = kind;

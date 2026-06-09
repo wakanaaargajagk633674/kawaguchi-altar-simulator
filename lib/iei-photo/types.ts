@@ -103,6 +103,21 @@ export type IeiPhotoAdjustments = {
 };
 
 /**
+ * 背景設定。
+ * 現状は人物切り抜きを行わず、画像外の余白・16:9の左右余白・将来の背景合成領域に使う。
+ */
+export type IeiPhotoBackgroundType =
+  | "white" // 白
+  | "light_gray" // 薄いグレー
+  | "warm_beige" // 淡いベージュ
+  | "pale_blue" // 淡いブルー
+  | "gradient"; // グラデーション
+
+export type IeiPhotoBackgroundSettings = {
+  type: IeiPhotoBackgroundType;
+};
+
+/**
  * 品質チェック項目。UI 表示用（MVP ではモック値）。
  */
 export type IeiPhotoQualityCheckItem = {
