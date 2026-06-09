@@ -45,6 +45,35 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * REMBG_WORKER_URL がローカル（ループバック）を指しているか判定する。
+ * Vercel など別ホスト上では localhost / 127.0.0.1 / ::1 のワーカーには
+ * 構造上到達できないため、こうしたURLは self-hosted worker として扱わない。
+ */
+function isLoopbackWorkerUrl(rawUrl: string): boolean {
+  const value = rawUrl.trim();
+  if (!value) return false;
+
+  // URL として解釈し、ホスト名で判定する（http://localhost:8000 等に対応）。
+  let host = "";
+  try {
+    host = new URL(value).hostname;
+  } catch {
+    // スキームが無い等でパースできない場合は、文字列先頭で判定する。
+    host = value.replace(/^.*:\/\//, "").split("/")[0].split(":")[0];
+  }
+  // [::1] のような括弧付きIPv6にも対応。
+  host = host.replace(/^\[|\]$/g, "").toLowerCase();
+
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host === "0.0.0.0" ||
+    host.endsWith(".localhost")
+  );
+}
+
+/**
  * RUNPOD_ENDPOINT_URL（末尾が /runsync でも /run でも可）から
  * エンドポイントのベースURL（.../v2/<endpointId>）を導出する。
  */
@@ -353,16 +382,43 @@ async function viaRunpodServerless(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const httpWorkerUrl = process.env.REMBG_WORKER_URL;
+  const rawHttpWorkerUrl = process.env.REMBG_WORKER_URL;
   const runpodEndpointUrl = process.env.RUNPOD_ENDPOINT_URL;
   const runpodApiKey = process.env.RUNPOD_API_KEY;
   const runpodReady = Boolean(runpodEndpointUrl && runpodApiKey);
 
-  // 優先順位: 1) self_hosted_http_worker  2) runpod_serverless_worker
-  if (!httpWorkerUrl && !runpodReady) {
-    const detail = runpodEndpointUrl
-      ? "RUNPOD_API_KEY が未設定です。"
-      : "REMBG_WORKER_URL（自前HTTP worker）または RUNPOD_ENDPOINT_URL + RUNPOD_API_KEY（RunPod）を設定してください。";
+  // REMBG_WORKER_URL がローカル（localhost / 127.0.0.1 / ::1 等）の場合、
+  // Vercel など別ホスト上では到達できない。self-hosted worker としては扱わず、
+  // RunPod が設定済みならそちらへ自動フォールバックする。
+  const httpWorkerIsLoopback = Boolean(
+    rawHttpWorkerUrl && isLoopbackWorkerUrl(rawHttpWorkerUrl),
+  );
+  // 実際に利用する HTTP worker URL（ループバックは無効化）。
+  const usableHttpWorkerUrl =
+    rawHttpWorkerUrl && !httpWorkerIsLoopback ? rawHttpWorkerUrl : undefined;
+
+  if (httpWorkerIsLoopback) {
+    console.log(
+      "[iei-photo/remove-background] REMBG_WORKER_URL is loopback; " +
+        (runpodReady
+          ? "falling back to RunPod."
+          : "RunPod not configured."),
+    );
+  }
+
+  // 優先順位: 1) self_hosted_http_worker（非ループバック） 2) runpod_serverless_worker
+  if (!usableHttpWorkerUrl && !runpodReady) {
+    let detail: string;
+    if (httpWorkerIsLoopback) {
+      // ローカルURLが残っているが RunPod も無い、という最も誤りやすいケース。
+      detail =
+        "Vercelでは localhost / 127.0.0.1 の rembg worker は使えません。RUNPOD_ENDPOINT_URL と RUNPOD_API_KEY を設定してください。";
+    } else if (runpodEndpointUrl) {
+      detail = "RUNPOD_API_KEY が未設定です。";
+    } else {
+      detail =
+        "REMBG_WORKER_URL（自前HTTP worker）または RUNPOD_ENDPOINT_URL + RUNPOD_API_KEY（RunPod）を設定してください。";
+    }
     return jsonError(`背景除去 worker が未設定です。${detail}`, 503);
   }
 
@@ -378,8 +434,8 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError("画像ファイル（file）が見つかりません。", 400);
   }
 
-  if (httpWorkerUrl) {
-    return viaHttpWorker(httpWorkerUrl, file);
+  if (usableHttpWorkerUrl) {
+    return viaHttpWorker(usableHttpWorkerUrl, file);
   }
   // ここに来る時点で runpodReady === true
   return viaRunpodServerless(
