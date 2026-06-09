@@ -20,6 +20,8 @@ import {
   IEI_PHOTO_BACKGROUND_GRADIENT,
   IEI_PHOTO_BACKGROUND_SOLID_COLORS,
   IEI_PHOTO_DEFAULT_BACKGROUND,
+  backgroundImageSrc,
+  isPhotoBackgroundType,
 } from "./backgrounds";
 import type {
   IeiPhotoAdjustments,
@@ -34,26 +36,72 @@ const JPEG_QUALITY = 0.92;
 const BASE_BG_COLOR = "#ffffff";
 
 /**
- * 背景設定に応じて Canvas 全面を塗る（フィルタ非適用）。
- * 単色 or 縦方向グラデーション。人物切り抜きは行わず、余白/合成領域の塗りのみ。
+ * 背景設定に応じて Canvas 全面を塗る／敷く（フィルタ非適用）。
+ * - bgImage があれば写真背景を cover で全面に敷く（人物はこの上に合成される）。
+ * - 無ければ単色 or 縦方向グラデーション。画像系で未ロード時は白にフォールバック。
+ * 人物の描き直しは行わず、背景の塗り/敷きのみ。
  */
 function fillBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   background?: IeiPhotoBackgroundSettings,
+  bgImage?: HTMLImageElement | null,
 ): void {
   const settings = background ?? IEI_PHOTO_DEFAULT_BACKGROUND;
   ctx.filter = "none";
+  if (bgImage) {
+    drawCover(
+      ctx,
+      bgImage,
+      bgImage.naturalWidth,
+      bgImage.naturalHeight,
+      width,
+      height,
+    );
+    return;
+  }
   if (settings.type === "gradient") {
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     gradient.addColorStop(0, IEI_PHOTO_BACKGROUND_GRADIENT.from);
     gradient.addColorStop(1, IEI_PHOTO_BACKGROUND_GRADIENT.to);
     ctx.fillStyle = gradient;
+  } else if (isPhotoBackgroundType(settings.type)) {
+    // 写真背景なのに画像が未ロード（読み込み失敗等）の場合は白で代替。
+    ctx.fillStyle = BASE_BG_COLOR;
   } else {
     ctx.fillStyle = IEI_PHOTO_BACKGROUND_SOLID_COLORS[settings.type];
   }
   ctx.fillRect(0, 0, width, height);
+}
+
+/** 背景画像のキャッシュ（同一 URL の再読み込みを防ぐ）。 */
+const backgroundImageCache = new Map<string, HTMLImageElement>();
+
+/**
+ * 背景設定と向きに対応する写真背景画像を読み込む（写真系以外は null）。
+ * 読み込み失敗時は null を返し、呼び出し側は単色フォールバックする（throw しない）。
+ */
+export async function resolveBackgroundImage(
+  background: IeiPhotoBackgroundSettings | undefined,
+  orientation: "vertical" | "wide",
+): Promise<HTMLImageElement | null> {
+  const settings = background ?? IEI_PHOTO_DEFAULT_BACKGROUND;
+  const src = backgroundImageSrc(settings, orientation);
+  if (!src) {
+    return null;
+  }
+  const cached = backgroundImageCache.get(src);
+  if (cached) {
+    return cached;
+  }
+  try {
+    const img = await loadImageElement(src);
+    backgroundImageCache.set(src, img);
+    return img;
+  } catch {
+    return null;
+  }
 }
 
 /** 画像 URL（ObjectURL など）から HTMLImageElement を読み込む。 */
@@ -198,14 +246,15 @@ export function renderBasePhotoCanvas(
   img: HTMLImageElement,
   adjustments?: Partial<IeiPhotoAdjustments>,
   background?: IeiPhotoBackgroundSettings,
+  bgImage?: HTMLImageElement | null,
 ): HTMLCanvasElement {
   const a = clampAdjustments(adjustments);
   const { width, height } = IEI_PHOTO_EXPORT_SIZES.base.pixelGuide;
   const canvas = createCanvas(width, height);
   const ctx = get2dContext(canvas);
 
-  // 背景はフィルタ非適用で塗る（選択した背景タイプを反映。人物切り抜きはしない）。
-  fillBackground(ctx, width, height, background);
+  // 背景はフィルタ非適用で塗る／敷く（選択した背景を反映。人物切り抜きはしない）。
+  fillBackground(ctx, width, height, background, bgImage);
 
   // 明るさ・コントラスト・彩度を適用して描画。
   ctx.filter = `brightness(${a.brightness}%) contrast(${a.contrast}%) saturate(${a.saturation}%)`;
@@ -243,7 +292,9 @@ export async function createBasePhotoFromImage(
   const url = ownsUrl ? URL.createObjectURL(source) : source;
   try {
     const img = await loadImageElement(url);
-    return renderBasePhotoCanvas(img, adjustments, background);
+    // 基準写真（縦）に焼き込む写真背景を読み込む（写真系以外は null）。
+    const bgImage = await resolveBackgroundImage(background, "vertical");
+    return renderBasePhotoCanvas(img, adjustments, background, bgImage);
   } finally {
     // 自前で作成した ObjectURL のみ解放（呼び出し側所有の URL は解放しない）。
     if (ownsUrl) {
@@ -293,11 +344,12 @@ export async function exportYotsugiriFromBase(
 export async function exportMonitor169FromBase(
   base: HTMLCanvasElement,
   background?: IeiPhotoBackgroundSettings,
+  bgImage?: HTMLImageElement | null,
 ): Promise<Blob> {
   const { width, height } = IEI_PHOTO_EXPORT_SIZES.monitor169.pixelGuide;
   const canvas = createCanvas(width, height);
   const ctx = get2dContext(canvas);
-  fillBackground(ctx, width, height, background);
+  fillBackground(ctx, width, height, background, bgImage);
   drawContain(ctx, base, base.width, base.height, width, height);
   return canvasToJpegBlob(canvas);
 }
@@ -318,8 +370,11 @@ export async function exportFromBaseByKind(
       return exportTesatsuFromBase(base);
     case "yotsugiri":
       return exportYotsugiriFromBase(base);
-    case "monitor169":
-      return exportMonitor169FromBase(base, background);
+    case "monitor169": {
+      // 16:9 の余白に敷く写真背景（横）を読み込む（写真系以外は null）。
+      const bgImage = await resolveBackgroundImage(background, "wide");
+      return exportMonitor169FromBase(base, background, bgImage);
+    }
     default: {
       // 網羅性チェック
       const _exhaustive: never = kind;

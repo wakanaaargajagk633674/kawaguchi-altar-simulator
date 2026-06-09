@@ -103,18 +103,32 @@ export type IeiPhotoAdjustments = {
 };
 
 /**
+ * 性別。背景写真の自動選択に使う（男性→ブルー / 女性→ピンク）。
+ * AIによる人物推定は行わず、利用者が手動で選ぶ。
+ */
+export type IeiPhotoGender = "male" | "female";
+
+/**
  * 背景設定。
- * 現状は人物切り抜きを行わず、画像外の余白・16:9の左右余白・将来の背景合成領域に使う。
+ * 切り抜いた人物を、選択した背景の上に Canvas 合成して出力する。
+ * - 単色 / グラデーション: 全面を塗る。
+ * - photo: 性別に連動した写真背景（男性=ブルー / 女性=ピンク）。出力サイズに応じて
+ *   縦長（手札・四切）/16:9（モニタ）画像を使い分ける。
+ * - sky: 空の写真背景（16:9専用）。縦サイズでは性別の写真背景にフォールバックする。
  */
 export type IeiPhotoBackgroundType =
   | "white" // 白
   | "light_gray" // 薄いグレー
   | "warm_beige" // 淡いベージュ
   | "pale_blue" // 淡いブルー
-  | "gradient"; // グラデーション
+  | "gradient" // グラデーション
+  | "photo" // 写真背景（性別連動: 男性=ブルー / 女性=ピンク）
+  | "sky"; // 空（16:9専用。縦は性別の写真背景にフォールバック）
 
 export type IeiPhotoBackgroundSettings = {
   type: IeiPhotoBackgroundType;
+  /** photo/sky のときに使う性別。未指定時は male（ブルー）扱い。 */
+  gender?: IeiPhotoGender;
 };
 
 /**

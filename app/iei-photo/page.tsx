@@ -31,6 +31,7 @@ import {
 import {
   loadImageElement,
   renderBasePhotoCanvas,
+  resolveBackgroundImage,
   exportFromBaseByKind,
   filenameForKind,
   downloadBlob,
@@ -41,6 +42,7 @@ import type {
   IeiPhotoBackgroundType,
   IeiPhotoExportKind,
   IeiPhotoExports,
+  IeiPhotoGender,
   IeiPhotoJobStatus,
   IeiPhotoMode,
   IeiPhotoQualityCheckItem,
@@ -241,7 +243,9 @@ export default function IeiPhotoPage() {
         return;
       }
       try {
-        const canvas = renderBasePhotoCanvas(source, adj, bg);
+        // 写真背景（縦: 手札/四切）を基準写真に焼き込む。写真系以外は null。
+        const bgImage = await resolveBackgroundImage(bg, "vertical");
+        const canvas = renderBasePhotoCanvas(source, adj, bg, bgImage);
         baseCanvasRef.current = canvas;
         setHasBase(true);
         setError(null);
@@ -490,7 +494,13 @@ export default function IeiPhotoPage() {
   }, []);
 
   const handleBackgroundType = useCallback((type: IeiPhotoBackgroundType) => {
-    setBackground({ type });
+    // 性別（写真背景の選択）は保持したままタイプだけ切り替える。
+    setBackground((prev) => ({ ...prev, type }));
+  }, []);
+
+  // 性別トグル: 写真背景（男性=ブルー / 女性=ピンク）を自動選択する。
+  const handleBackgroundGender = useCallback((gender: IeiPhotoGender) => {
+    setBackground({ type: "photo", gender });
   }, []);
 
   /**
@@ -611,6 +621,7 @@ export default function IeiPhotoPage() {
           <IeiPhotoBackgroundPanel
             settings={background}
             onChangeType={handleBackgroundType}
+            onChangeGender={handleBackgroundGender}
             onRemoveBackground={handleRemoveBackground}
             removing={removingBg}
             hasCutout={hasCutout}
