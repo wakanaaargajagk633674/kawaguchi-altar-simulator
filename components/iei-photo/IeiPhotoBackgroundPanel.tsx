@@ -10,22 +10,27 @@ import type {
 type IeiPhotoBackgroundPanelProps = {
   settings: IeiPhotoBackgroundSettings;
   onChangeType: (type: IeiPhotoBackgroundType) => void;
-  /** 背景切り抜き（未接続。押すと未実装メッセージを表示） */
+  /** 背景切り抜き（自前 rembg ワーカー経由） */
   onRemoveBackground: () => void;
+  /** 背景切り抜き処理中か */
+  removing: boolean;
+  /** 背景切り抜き済み（透過PNGあり）か */
+  hasCutout: boolean;
   disabled?: boolean;
 };
 
 /**
- * 背景設定パネル。
- * - 背景タイプの選択（余白・16:9 余白・将来の背景合成に使う）
- * - 背景切り抜き: 未接続（将来API接続予定）
- * - 背景差し替えプレビュー: 現在はモック
- * 人物の描き直しは行わない。
+ * 背景設定パネル（自前 rembg ワーカー方式）。
+ * - 背景タイプの選択（余白・16:9 余白・人物との合成に使う）
+ * - 背景切り抜き: 自前ワーカー（/api/iei-photo/remove-background 経由）
+ * 人物の描き直しは行わない。背景除去（透過PNG化）のみ。
  */
 export default function IeiPhotoBackgroundPanel({
   settings,
   onChangeType,
   onRemoveBackground,
+  removing,
+  hasCutout,
   disabled = false,
 }: IeiPhotoBackgroundPanelProps) {
   return (
@@ -68,29 +73,35 @@ export default function IeiPhotoBackgroundPanel({
         })}
       </div>
 
-      {/* 背景切り抜き（未接続） */}
+      {/* 背景切り抜き（自前 rembg ワーカー） */}
       <div className="mt-4 flex items-center justify-between gap-2 rounded-lg border border-stone-200 bg-stone-50 p-3">
         <div>
           <p className="text-sm font-semibold text-slate-800">背景切り抜き</p>
-          <p className="text-xs text-slate-500">未接続 / 将来API接続予定</p>
+          <p className="text-xs text-slate-500">
+            {hasCutout
+              ? "背景切り抜き済み。選択した背景と合成して出力します。"
+              : "自前 rembg ワーカーで人物領域を透過PNG化します。"}
+          </p>
         </div>
         <button
           type="button"
           onClick={onRemoveBackground}
-          disabled={disabled}
+          disabled={disabled || removing}
           className="shrink-0 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          背景を切り抜く
+          {removing
+            ? "背景を切り抜き中…"
+            : hasCutout
+              ? "背景を切り抜き直す"
+              : "背景を切り抜く"}
         </button>
       </div>
 
-      {/* 背景差し替えプレビュー（モック） */}
-      <p className="mt-3 text-xs text-slate-500">
-        背景差し替えプレビュー: 現在はモックです。
-      </p>
-
       <p className="mt-3 rounded-md bg-stone-50 px-3 py-2 text-[11px] leading-5 text-slate-500">
-        現在のMVPでは、背景切り抜きAPIは未接続です。背景タイプは余白や将来の背景差し替えに使われます。人物の描き直しは行いません。
+        背景切り抜きは自前 rembg ワーカーで処理します。人物生成は行いません。元写真から人物領域を透過PNG化し、背景設定と合成します。
+      </p>
+      <p className="mt-2 text-[11px] leading-5 text-amber-700">
+        大きすぎる画像は背景切り抜きに時間がかかる、または失敗する場合があります。失敗する場合は画像サイズを小さくして再度お試しください。
       </p>
     </section>
   );

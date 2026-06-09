@@ -21,7 +21,7 @@ import {
   getAiGenerationProvider,
   IEI_PHOTO_MODE_TO_ROLE,
 } from "@/lib/iei-photo/ai-generation-provider";
-import { getBackgroundProvider } from "@/lib/iei-photo/background-provider";
+import { requestBackgroundRemoval } from "@/lib/iei-photo/background-client";
 import { IEI_PHOTO_DEFAULT_BACKGROUND } from "@/lib/iei-photo/backgrounds";
 import {
   IEI_PHOTO_DEFAULT_ADJUSTMENTS,
@@ -154,6 +154,10 @@ export default function IeiPhotoPage() {
   const [background, setBackground] = useState<IeiPhotoBackgroundSettings>(
     IEI_PHOTO_DEFAULT_BACKGROUND,
   );
+  // 背景切り抜き（透過PNG）の状態
+  const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
+  const [hasCutout, setHasCutout] = useState<boolean>(false);
+  const [removingBg, setRemovingBg] = useState<boolean>(false);
   const [statusState, setStatusState] = useState<StatusState>(IDLE_STATUS);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -162,8 +166,10 @@ export default function IeiPhotoPage() {
   const [hasExported, setHasExported] = useState<boolean>(false);
   const [imgLoaded, setImgLoaded] = useState<boolean>(false);
 
-  // 読み込み済み元画像 / 基準写真（親データ）
+  // 元画像 File / 読み込み済み元画像 / 切り抜き済み画像 / 基準写真（親データ）
+  const fileRef = useRef<File | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const cutoutImgRef = useRef<HTMLImageElement | null>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 「手動で微調整する」でスクロール移動する先
   const adjustmentRef = useRef<HTMLDivElement | null>(null);
@@ -171,12 +177,16 @@ export default function IeiPhotoPage() {
   // ObjectURL の最新値を保持し、アンマウント時に解放するための ref
   const previewUrlRef = useRef<string | null>(null);
   const outputUrlRef = useRef<string | null>(null);
+  const cutoutUrlRef = useRef<string | null>(null);
   useEffect(() => {
     previewUrlRef.current = previewUrl;
   }, [previewUrl]);
   useEffect(() => {
     outputUrlRef.current = outputUrl;
   }, [outputUrl]);
+  useEffect(() => {
+    cutoutUrlRef.current = cutoutUrl;
+  }, [cutoutUrl]);
 
   // 進行中タイマーの管理
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -194,6 +204,9 @@ export default function IeiPhotoPage() {
       }
       if (outputUrlRef.current) {
         URL.revokeObjectURL(outputUrlRef.current);
+      }
+      if (cutoutUrlRef.current) {
+        URL.revokeObjectURL(cutoutUrlRef.current);
       }
     };
   }, []);
@@ -218,12 +231,13 @@ export default function IeiPhotoPage() {
       kind: IeiPhotoExportKind,
       bg: IeiPhotoBackgroundSettings,
     ) => {
-      const img = imgRef.current;
-      if (!img) {
+      // 切り抜き済み透過PNGがあればそれを優先（背景と合成）。無ければ元画像。
+      const source = cutoutImgRef.current ?? imgRef.current;
+      if (!source) {
         return;
       }
       try {
-        const canvas = renderBasePhotoCanvas(img, adj, bg);
+        const canvas = renderBasePhotoCanvas(source, adj, bg);
         baseCanvasRef.current = canvas;
         setHasBase(true);
         setError(null);
@@ -240,15 +254,28 @@ export default function IeiPhotoPage() {
     [replaceOutputUrl],
   );
 
+  const replaceCutoutUrl = useCallback((next: string | null) => {
+    setCutoutUrl((prev) => {
+      if (prev && prev !== next) {
+        URL.revokeObjectURL(prev);
+      }
+      return next;
+    });
+  }, []);
+
   const resetResults = useCallback(() => {
     setStatusState(IDLE_STATUS);
     setError(null);
     setInfo(null);
     setHasBase(false);
     setHasExported(false);
+    setHasCutout(false);
+    setRemovingBg(false);
     baseCanvasRef.current = null;
+    cutoutImgRef.current = null;
     replaceOutputUrl(null);
-  }, [replaceOutputUrl]);
+    replaceCutoutUrl(null);
+  }, [replaceOutputUrl, replaceCutoutUrl]);
 
   const handleSelectFile = useCallback(
     (file: File) => {
@@ -257,6 +284,7 @@ export default function IeiPhotoPage() {
       setAdjustments(IEI_PHOTO_DEFAULT_ADJUSTMENTS);
       setImgLoaded(false);
       imgRef.current = null;
+      fileRef.current = file;
 
       const url = URL.createObjectURL(file);
       setPreviewUrl((prev) => {
@@ -291,6 +319,7 @@ export default function IeiPhotoPage() {
     setFileName(null);
     setImgLoaded(false);
     imgRef.current = null;
+    fileRef.current = null;
     setPreviewUrl((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -435,15 +464,49 @@ export default function IeiPhotoPage() {
     setBackground({ type });
   }, []);
 
-  // 背景切り抜き（未接続）。プロバイダー（現状 mock）にメッセージを問い合わせて表示する。
+  /**
+   * 背景切り抜き（自前 rembg ワーカー経由）。
+   * 元File を /api/iei-photo/remove-background へ送り、透過PNGを取得。
+   * 以後の基準写真生成は切り抜き画像を優先し、選択背景と Canvas 合成する。
+   */
   const handleRemoveBackground = useCallback(async () => {
-    const provider = getBackgroundProvider();
-    const result = await provider.process({
-      role: "remove_background",
-      settings: background,
-    });
-    setInfo(result.message);
-  }, [background]);
+    const file = fileRef.current;
+    if (!file) {
+      setError("先に写真をアップロードしてください。");
+      return;
+    }
+    setRemovingBg(true);
+    setError(null);
+    setInfo("背景を切り抜き中…");
+
+    let pendingUrl: string | null = null;
+    try {
+      const blob = await requestBackgroundRemoval(file);
+      const url = URL.createObjectURL(blob);
+      pendingUrl = url;
+      const img = await loadImageElement(url);
+      cutoutImgRef.current = img;
+      replaceCutoutUrl(url);
+      pendingUrl = null;
+      setHasCutout(true);
+      setInfo("背景切り抜き済み。選択した背景と合成して出力します。");
+      void generatePreview(adjustments, previewKind, background);
+    } catch (e) {
+      // 失敗時は古い切り抜き画像を残さない。
+      if (pendingUrl) {
+        URL.revokeObjectURL(pendingUrl);
+      }
+      cutoutImgRef.current = null;
+      replaceCutoutUrl(null);
+      setHasCutout(false);
+      setInfo(null);
+      setError(e instanceof Error ? e.message : "背景切り抜きに失敗しました。");
+      // 元画像でのプレビューに戻す。
+      void generatePreview(adjustments, previewKind, background);
+    } finally {
+      setRemovingBg(false);
+    }
+  }, [adjustments, previewKind, background, generatePreview, replaceCutoutUrl]);
 
   const canExport = hasBase && !exporting;
 
@@ -509,7 +572,9 @@ export default function IeiPhotoPage() {
             settings={background}
             onChangeType={handleBackgroundType}
             onRemoveBackground={handleRemoveBackground}
-            disabled={isProcessing}
+            removing={removingBg}
+            hasCutout={hasCutout}
+            disabled={isProcessing || !imgLoaded}
           />
           <div ref={adjustmentRef}>
             <IeiPhotoAdjustmentPanel

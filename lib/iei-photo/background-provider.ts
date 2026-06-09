@@ -90,15 +90,57 @@ export const mockBackgroundProvider: IeiPhotoBackgroundProvider = {
   },
 };
 
+/**
+ * 自前 rembg ワーカー プロバイダー。
+ *
+ * 実際の背景除去は、クライアントから Next.js の `/api/iei-photo/remove-background`
+ * を経由して呼ぶ（クライアントは worker を直接叩かない）。実通信は
+ * lib/iei-photo/background-client.ts の requestBackgroundRemoval が担当する。
+ * ここでは役割と扱い（透過PNG取得→Canvas合成）を宣言する。
+ */
+export const selfHostedWorkerBackgroundProvider: IeiPhotoBackgroundProvider = {
+  id: "self_hosted_worker",
+  supports: (role) =>
+    role === "remove_background" || role === "compose_background",
+  async process({ role }) {
+    if (role === "remove_background") {
+      return {
+        ok: true,
+        provider: "self_hosted_worker",
+        role,
+        handledByCanvas: false,
+        resultRef: null,
+        message:
+          "背景切り抜きは自前 rembg ワーカー（/api/iei-photo/remove-background 経由）で処理します。人物生成は行いません。",
+      };
+    }
+    return {
+      ok: true,
+      provider: "self_hosted_worker",
+      role,
+      handledByCanvas: true,
+      resultRef: null,
+      message:
+        "切り抜き済みの人物を、選択した背景とブラウザ内 Canvas で合成します。",
+    };
+  },
+};
+
 const PROVIDERS: Partial<
   Record<IeiPhotoBackgroundProviderId, IeiPhotoBackgroundProvider>
 > = {
   mock: mockBackgroundProvider,
-  // remove_bg_api / photoroom_api / external_background_api / self_hosted_worker は将来実装。
+  self_hosted_worker: selfHostedWorkerBackgroundProvider,
+  // remove_bg_api / photoroom_api / external_background_api は将来実装。
 };
 
-/** 現在有効な背景プロバイダー（現状は mock 固定）。 */
-export const ACTIVE_BACKGROUND_PROVIDER_ID: IeiPhotoBackgroundProviderId = "mock";
+/**
+ * 現在有効な背景プロバイダー。
+ * 背景切り抜きは自前 rembg ワーカー方式（self_hosted_worker）を採用。
+ * 実通信は Next.js Route Handler 経由（background-client.ts）。
+ */
+export const ACTIVE_BACKGROUND_PROVIDER_ID: IeiPhotoBackgroundProviderId =
+  "self_hosted_worker";
 
 /**
  * 背景プロバイダーを取得する。未実装IDは mock にフォールバックする。
