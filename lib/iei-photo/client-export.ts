@@ -13,8 +13,10 @@
 
 import {
   IEI_PHOTO_EXPORT_FILENAMES,
+  IEI_PHOTO_EXPORT_ORDER,
   IEI_PHOTO_EXPORT_SIZES,
 } from "./export-sizes";
+import { createZipBlob, type ZipEntry } from "./zip";
 import { clampAdjustments } from "./adjustments";
 import {
   IEI_PHOTO_BACKGROUND_GRADIENT,
@@ -389,20 +391,41 @@ export function filenameForKind(kind: IeiPhotoExportKind): string {
 }
 
 /**
+ * すべての出力サイズを1つの ZIP にまとめて返す（単一ダウンロード）。
+ * 複数ファイルの連続ダウンロードはブラウザにブロックされやすいため、
+ * 一括ダウンロードは ZIP 化して単一ダウンロードにする。中身は各サイズの JPEG。
+ */
+export async function exportAllZipFromBase(
+  base: HTMLCanvasElement,
+  background?: IeiPhotoBackgroundSettings,
+): Promise<Blob> {
+  const entries: ZipEntry[] = [];
+  for (const kind of IEI_PHOTO_EXPORT_ORDER) {
+    const blob = await exportFromBaseByKind(base, kind, background);
+    const data = new Uint8Array(await blob.arrayBuffer());
+    entries.push({ name: filenameForKind(kind), data });
+  }
+  return createZipBlob(entries);
+}
+
+/**
  * Blob をダウンロードさせる。
  * 生成した ObjectURL はダウンロード開始後に解放する。
  */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
-  try {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  // クリック直後にアンカー削除/URL解放を行うと、ブラウザによっては
+  // ダウンロードが中断される（特に連続ダウンロードの2件目以降）。
+  // ダウンロードが確定するまで少し待ってから後始末する。
+  window.setTimeout(() => {
     anchor.remove();
-  } finally {
-    // クリック直後に revoke するとダウンロードが中断される場合があるため、少し遅らせる。
-    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
-  }
+    URL.revokeObjectURL(url);
+  }, 1500);
 }
