@@ -11,6 +11,7 @@ import IeiPhotoStepIndicator from "@/components/iei-photo/IeiPhotoStepIndicator"
 import IeiPhotoNextActions from "@/components/iei-photo/IeiPhotoNextActions";
 import IeiPhotoQualityCheck from "@/components/iei-photo/IeiPhotoQualityCheck";
 import IeiPhotoExportButtons from "@/components/iei-photo/IeiPhotoExportButtons";
+import IeiPhotoAiPanel from "@/components/iei-photo/IeiPhotoAiPanel";
 import {
   IEI_PHOTO_DEFAULT_MODE,
   IEI_PHOTO_NOTICES,
@@ -21,6 +22,7 @@ import {
   IEI_PHOTO_MODE_TO_ROLE,
 } from "@/lib/iei-photo/ai-generation-provider";
 import { requestBackgroundRemoval } from "@/lib/iei-photo/background-client";
+import { requestAiImage } from "@/lib/iei-photo/ai-image-client";
 import { IEI_PHOTO_DEFAULT_BACKGROUND } from "@/lib/iei-photo/backgrounds";
 import {
   IEI_PHOTO_DEFAULT_ADJUSTMENTS,
@@ -38,8 +40,11 @@ import {
 } from "@/lib/iei-photo/client-export";
 import type {
   IeiPhotoAdjustments,
+  IeiPhotoAiImageMode,
+  IeiPhotoAiResultMode,
   IeiPhotoBackgroundSettings,
   IeiPhotoBackgroundType,
+  IeiPhotoClothingStyle,
   IeiPhotoExportKind,
   IeiPhotoExports,
   IeiPhotoGender,
@@ -167,11 +172,21 @@ export default function IeiPhotoPage() {
   const [hasBase, setHasBase] = useState<boolean>(false);
   const [hasExported, setHasExported] = useState<boolean>(false);
   const [imgLoaded, setImgLoaded] = useState<boolean>(false);
+  // AIモード（高度AI補正 / AI肖像生成 / AIに全てお任せ）の状態
+  const [clothingStyle, setClothingStyle] =
+    useState<IeiPhotoClothingStyle>("none");
+  const [aiResultMode, setAiResultMode] = useState<IeiPhotoAiResultMode>(null);
+  const [allowPortrait, setAllowPortrait] = useState<boolean>(false);
+  const [allowAuto, setAllowAuto] = useState<boolean>(false);
+  const [aiProcessing, setAiProcessing] = useState<boolean>(false);
+  const [aiEnhancedUrl, setAiEnhancedUrl] = useState<string | null>(null);
 
   // 元画像 File / 読み込み済み元画像 / 切り抜き済み画像 / 基準写真（親データ）
   const fileRef = useRef<File | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const cutoutImgRef = useRef<HTMLImageElement | null>(null);
+  // AI結果画像（あれば最優先の親データ）
+  const aiEnhancedImgRef = useRef<HTMLImageElement | null>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 「手動で微調整する」でスクロール移動する先
   const adjustmentRef = useRef<HTMLDivElement | null>(null);
@@ -182,6 +197,7 @@ export default function IeiPhotoPage() {
   const previewUrlRef = useRef<string | null>(null);
   const outputUrlRef = useRef<string | null>(null);
   const cutoutUrlRef = useRef<string | null>(null);
+  const aiEnhancedUrlRef = useRef<string | null>(null);
   useEffect(() => {
     previewUrlRef.current = previewUrl;
   }, [previewUrl]);
@@ -191,6 +207,9 @@ export default function IeiPhotoPage() {
   useEffect(() => {
     cutoutUrlRef.current = cutoutUrl;
   }, [cutoutUrl]);
+  useEffect(() => {
+    aiEnhancedUrlRef.current = aiEnhancedUrl;
+  }, [aiEnhancedUrl]);
 
   // 進行中タイマーの管理
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -211,6 +230,9 @@ export default function IeiPhotoPage() {
       }
       if (cutoutUrlRef.current) {
         URL.revokeObjectURL(cutoutUrlRef.current);
+      }
+      if (aiEnhancedUrlRef.current) {
+        URL.revokeObjectURL(aiEnhancedUrlRef.current);
       }
     };
   }, []);
@@ -235,8 +257,12 @@ export default function IeiPhotoPage() {
       kind: IeiPhotoExportKind,
       bg: IeiPhotoBackgroundSettings,
     ) => {
-      // 切り抜き済み透過PNGがあればそれを優先（背景と合成）。無ければ元画像。
-      const source = cutoutImgRef.current ?? imgRef.current;
+      // 親データの優先順位:
+      //   1. AI結果画像（高度AI補正 / AI肖像生成 / AIお任せ）
+      //   2. 背景切り抜き済み透過PNG（選択背景と合成）
+      //   3. 元画像
+      const source =
+        aiEnhancedImgRef.current ?? cutoutImgRef.current ?? imgRef.current;
       if (!source) {
         return;
       }
@@ -269,6 +295,15 @@ export default function IeiPhotoPage() {
     });
   }, []);
 
+  const replaceAiEnhancedUrl = useCallback((next: string | null) => {
+    setAiEnhancedUrl((prev) => {
+      if (prev && prev !== next) {
+        URL.revokeObjectURL(prev);
+      }
+      return next;
+    });
+  }, []);
+
   const resetResults = useCallback(() => {
     setStatusState(IDLE_STATUS);
     setError(null);
@@ -279,9 +314,16 @@ export default function IeiPhotoPage() {
     setRemovingBg(false);
     baseCanvasRef.current = null;
     cutoutImgRef.current = null;
+    // AI結果も解除する（新しい写真・クリア時）。
+    aiEnhancedImgRef.current = null;
+    setAiResultMode(null);
+    setAiProcessing(false);
+    setAllowPortrait(false);
+    setAllowAuto(false);
     replaceOutputUrl(null);
     replaceCutoutUrl(null);
-  }, [replaceOutputUrl, replaceCutoutUrl]);
+    replaceAiEnhancedUrl(null);
+  }, [replaceOutputUrl, replaceCutoutUrl, replaceAiEnhancedUrl]);
 
   const handleSelectFile = useCallback(
     (file: File) => {
@@ -340,6 +382,8 @@ export default function IeiPhotoPage() {
     statusState.status !== "completed" &&
     statusState.status !== "failed";
   const isCompleted = statusState.status === "completed";
+  // AIモード（AI標準以外）。服装選択・お任せ・許可チェックはこのときだけ表示・有効。
+  const isAiMode = mode !== "AI_STANDARD";
 
   // 現在の処理ステップ（1〜5）
   const currentStep = !previewUrl
@@ -398,17 +442,148 @@ export default function IeiPhotoPage() {
     }
   }, [isCompleted, hasBase]);
 
+  const handleChangeClothing = useCallback((style: IeiPhotoClothingStyle) => {
+    setClothingStyle(style);
+  }, []);
+
+  /**
+   * AI画像処理（高度AI補正 / AI肖像生成 / AIに全てお任せ）を実行する。
+   * 現在の基準写真 Canvas を /api/iei-photo/ai-image へ送り、AI結果画像を
+   * 新しい親データ（aiEnhancedImgRef）として反映する。以後の4種出力もこれから派生する。
+   * 16:9 はここでは横長生成せず、Canvas 側で中央配置する（出力仕様は不変）。
+   */
+  const runAiImage = useCallback(
+    async (aiMode: IeiPhotoAiImageMode) => {
+      const base = baseCanvasRef.current;
+      if (!base) {
+        setError("先に写真をアップロードして基準写真を作成してください。");
+        return;
+      }
+      if (aiMode === "portrait" && !allowPortrait) {
+        setError("AI肖像生成を許可するにチェックしてください。");
+        return;
+      }
+      if (aiMode === "auto" && !allowAuto) {
+        setError("AIに全てお任せ生成を許可するにチェックしてください。");
+        return;
+      }
+      const processingLabel =
+        aiMode === "advanced"
+          ? "AI高度補正中…"
+          : aiMode === "portrait"
+            ? "AI肖像生成中…"
+            : "AIにお任せ生成中…";
+      setAiProcessing(true);
+      setError(null);
+      setInfo(processingLabel);
+      setStatusState({
+        status: "creating_base",
+        progress: 60,
+        label: processingLabel,
+      });
+
+      let pendingUrl: string | null = null;
+      try {
+        const blob = await requestAiImage(base, aiMode, clothingStyle);
+        const url = URL.createObjectURL(blob);
+        pendingUrl = url;
+        const img = await loadImageElement(url);
+        aiEnhancedImgRef.current = img;
+        replaceAiEnhancedUrl(url);
+        pendingUrl = null;
+        setAiResultMode(aiMode);
+        const doneLabel =
+          aiMode === "advanced"
+            ? "AI高度補正済み。出力に反映します。"
+            : aiMode === "portrait"
+              ? "AI肖像生成済み。出力に反映します。"
+              : "AIお任せ生成済み。出力に反映します。";
+        setInfo(doneLabel);
+        setStatusState({ status: "completed", progress: 100, label: "完了" });
+        await generatePreview(
+          computeEffective(adjustments),
+          previewKind,
+          background,
+        );
+        requestAnimationFrame(() => {
+          previewRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        });
+      } catch (e) {
+        if (pendingUrl) {
+          URL.revokeObjectURL(pendingUrl);
+        }
+        setInfo(null);
+        setStatusState({
+          status: "failed",
+          progress: 0,
+          label: "AI生成に失敗しました",
+        });
+        setError(e instanceof Error ? e.message : "AI生成に失敗しました。");
+      } finally {
+        setAiProcessing(false);
+      }
+    },
+    [
+      allowPortrait,
+      allowAuto,
+      clothingStyle,
+      generatePreview,
+      computeEffective,
+      adjustments,
+      previewKind,
+      background,
+      replaceAiEnhancedUrl,
+    ],
+  );
+
+  const handleAuto = useCallback(() => {
+    void runAiImage("auto");
+  }, [runAiImage]);
+
+  /** AI結果を解除して通常生成（切り抜き or 元画像）に戻す。 */
+  const handleClearAiResult = useCallback(() => {
+    aiEnhancedImgRef.current = null;
+    replaceAiEnhancedUrl(null);
+    setAiResultMode(null);
+    setInfo("AI結果を解除しました。通常生成に戻しました。");
+    void generatePreview(
+      computeEffective(adjustments),
+      previewKind,
+      background,
+    );
+  }, [
+    replaceAiEnhancedUrl,
+    generatePreview,
+    computeEffective,
+    adjustments,
+    previewKind,
+    background,
+  ]);
+
   /**
    * 「AI遺影写真を生成する」。
-   * 進行表示: 写真を解析中 → AI生成設定を確認中 → 基準写真を生成中 → 品質を確認中 → 完了。
-   * 実APIは未接続。AI標準生成は Canvas での基準写真生成に委譲する（provider 経由で役割を判定）。
+   * - AI肖像生成モード: 許可チェック必須で /api/iei-photo/ai-image(mode=portrait) を実行。
+   * - それ以外（AI標準 / 高度AI補正）: 進行表示 → Canvas で基準写真を生成（AI標準の仮実装）。
+   *   高度AI補正の実AIは「高度AI補正を実行」ボタン（runAiImage("advanced")）で行う。
    */
   const handleStart = useCallback(async () => {
     if (!previewUrl) {
       setError("先に写真をアップロードしてください。");
       return;
     }
-    if (isProcessing) {
+    if (isProcessing || aiProcessing) {
+      return;
+    }
+    // AI肖像生成は人物を含めて生成するため、明示許可が必要。
+    if (mode === "AI_PORTRAIT") {
+      if (!allowPortrait) {
+        setError("AI肖像生成を許可するにチェックしてください。");
+        return;
+      }
+      void runAiImage("portrait");
       return;
     }
     clearTimers();
@@ -436,7 +611,15 @@ export default function IeiPhotoPage() {
       timersRef.current.push(timer);
       cumulativeDelay += step.delayMs;
     });
-  }, [previewUrl, isProcessing, clearTimers, mode]);
+  }, [
+    previewUrl,
+    isProcessing,
+    aiProcessing,
+    clearTimers,
+    mode,
+    allowPortrait,
+    runAiImage,
+  ]);
 
   /** 出力（調整後の基準写真を親データに各サイズを派生してダウンロード）。AI不使用・ガイド非焼き込み。 */
   const handleExport = useCallback(async (kind: keyof IeiPhotoExports) => {
@@ -486,8 +669,8 @@ export default function IeiPhotoPage() {
   }, []);
 
   const handleAdvancedAi = useCallback(() => {
-    setInfo("高度AI補正は次の開発ステップで外部画像処理APIと接続します。");
-  }, []);
+    void runAiImage("advanced");
+  }, [runAiImage]);
 
   const handleBackgroundType = useCallback((type: IeiPhotoBackgroundType) => {
     // 性別（写真背景の選択）は保持したままタイプだけ切り替える。
@@ -612,8 +795,26 @@ export default function IeiPhotoPage() {
           <IeiPhotoModeSelector
             selectedMode={mode}
             onSelect={setMode}
-            disabled={isProcessing}
+            disabled={isProcessing || aiProcessing}
           />
+          {/* AIモード専用: 服装選択・AIに全てお任せ・高度AI補正・許可チェック */}
+          {isAiMode && (
+            <IeiPhotoAiPanel
+              mode={mode}
+              clothingStyle={clothingStyle}
+              onChangeClothing={handleChangeClothing}
+              allowPortrait={allowPortrait}
+              onTogglePortrait={setAllowPortrait}
+              allowAuto={allowAuto}
+              onToggleAuto={setAllowAuto}
+              onAdvanced={handleAdvancedAi}
+              onAuto={handleAuto}
+              aiProcessing={aiProcessing}
+              aiResultMode={aiResultMode}
+              onClearAiResult={handleClearAiResult}
+              disabled={isProcessing || !imgLoaded || !hasBase}
+            />
+          )}
           <IeiPhotoBackgroundPanel
             settings={background}
             onChangeType={handleBackgroundType}
@@ -632,10 +833,14 @@ export default function IeiPhotoPage() {
             <button
               type="button"
               onClick={handleStart}
-              disabled={!previewUrl || isProcessing}
+              disabled={!previewUrl || isProcessing || aiProcessing}
               className="w-full rounded-lg bg-amber-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isProcessing ? "生成中…" : "AI遺影写真を生成する"}
+              {isProcessing || aiProcessing
+                ? "生成中…"
+                : mode === "AI_PORTRAIT"
+                  ? "AI肖像生成を実行する"
+                  : "AI遺影写真を生成する"}
             </button>
             {!previewUrl && (
               <p className="mt-2 text-center text-xs text-slate-500">
