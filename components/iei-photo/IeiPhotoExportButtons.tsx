@@ -91,10 +91,13 @@ export default function IeiPhotoExportButtons({
               : "cursor-not-allowed bg-stone-200 text-stone-400",
           )}
         >
-          すべてダウンロード（4ファイル）
+          すべてダウンロード（ZIP・4サイズまとめて）
         </button>
         <p className="mt-2 text-xs leading-5 text-slate-500">
-          ブラウザによっては複数ファイルの連続ダウンロードが確認される場合があります。
+          4サイズを1つの ZIP にまとめてダウンロードします（iei-photos.zip）。
+          サイズを個別に続けて保存する場合、ブラウザが「複数ファイルのダウンロード」許可を
+          求めることがあります。表示されたら「許可」してください。すべて確実に保存するには
+          この ZIP ダウンロードが簡単です。
         </p>
       </div>
     </section>

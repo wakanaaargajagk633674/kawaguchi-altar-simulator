@@ -16,7 +16,6 @@ import {
   IEI_PHOTO_NOTICES,
 } from "@/lib/iei-photo/image-rules";
 import { IEI_PHOTO_MOCK_STEPS } from "@/lib/iei-photo/mock-job";
-import { IEI_PHOTO_EXPORT_ORDER } from "@/lib/iei-photo/export-sizes";
 import {
   getAiGenerationProvider,
   IEI_PHOTO_MODE_TO_ROLE,
@@ -33,6 +32,7 @@ import {
   renderBasePhotoCanvas,
   resolveBackgroundImage,
   exportFromBaseByKind,
+  exportAllZipFromBase,
   filenameForKind,
   downloadBlob,
 } from "@/lib/iei-photo/client-export";
@@ -141,8 +141,6 @@ const IDLE_STATUS: StatusState = { status: "idle", progress: 0, label: "" };
 
 /** プレビュー再生成の debounce（ms） */
 const PREVIEW_DEBOUNCE_MS = 200;
-/** 一括ダウンロード時のファイル間の間隔（ms） */
-const BULK_DOWNLOAD_GAP_MS = 400;
 
 export default function IeiPhotoPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -460,7 +458,10 @@ export default function IeiPhotoPage() {
     }
   }, [background]);
 
-  /** すべての出力サイズを順番にダウンロードする。 */
+  /**
+   * すべての出力サイズを1つの ZIP にまとめてダウンロードする。
+   * 複数ファイルの連続ダウンロードはブラウザにブロックされやすいため、単一 ZIP にする。
+   */
   const handleExportAll = useCallback(async () => {
     const base = baseCanvasRef.current;
     if (!base) {
@@ -470,13 +471,8 @@ export default function IeiPhotoPage() {
     setExporting(true);
     setError(null);
     try {
-      for (const kind of IEI_PHOTO_EXPORT_ORDER) {
-        const blob = await exportFromBaseByKind(base, kind, background);
-        downloadBlob(blob, filenameForKind(kind));
-        await new Promise((resolve) =>
-          setTimeout(resolve, BULK_DOWNLOAD_GAP_MS),
-        );
-      }
+      const zip = await exportAllZipFromBase(base, background);
+      downloadBlob(zip, "iei-photos.zip");
       setHasExported(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "一括出力に失敗しました。");
