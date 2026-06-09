@@ -67,7 +67,7 @@ export default function IeiPhotoExportButtons({
                 {size.description}
               </span>
               <span className="mt-2 block text-xs font-semibold text-slate-400">
-                {ready ? "出力可能" : "未生成（実装後に出力されます）"}
+                {ready ? "ダウンロード可能" : "処理完了後に出力できます"}
               </span>
             </button>
           );

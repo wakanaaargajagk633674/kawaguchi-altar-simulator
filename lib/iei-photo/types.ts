@@ -94,4 +94,6 @@ export type IeiPhotoQualityCheckItem = {
   /** pending: 未判定 / pass: 合格 / warn: 要確認 / fail: 不合格 */
   status: "pending" | "pass" | "warn" | "fail";
   description: string;
+  /** 補足表示（例: 「元写真ピクセル使用」「AI未使用」「未実装」） */
+  note?: string;
 };

@@ -12,6 +12,13 @@ import {
   IEI_PHOTO_NOTICES,
 } from "@/lib/iei-photo/image-rules";
 import { IEI_PHOTO_MOCK_STEPS } from "@/lib/iei-photo/mock-job";
+import {
+  createBasePhotoFromImage,
+  exportBaseFromBase,
+  exportFromBaseByKind,
+  filenameForKind,
+  downloadBlob,
+} from "@/lib/iei-photo/client-export";
 import type {
   IeiPhotoExports,
   IeiPhotoJobStatus,
@@ -19,7 +26,7 @@ import type {
   IeiPhotoQualityCheckItem,
 } from "@/lib/iei-photo/types";
 
-/** 品質チェック項目の初期表示（MVP では未判定） */
+/** 処理前の品質チェック項目（未判定） */
 const INITIAL_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
   {
     key: "faceSimilarity",
@@ -47,6 +54,42 @@ const INITIAL_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
   },
 ];
 
+/**
+ * 処理完了後の品質チェック表示。
+ * 今回は実判定を行わず、ブラウザ内 Canvas で「元写真ピクセルのトリミング・配置のみ」を
+ * 行っている事実を表示する（AI は未使用）。
+ */
+const COMPLETED_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
+  {
+    key: "faceSimilarity",
+    label: "顔の類似度",
+    status: "pending",
+    description: "AIによる類似度の自動判定は行っていません。",
+    note: "未実装",
+  },
+  {
+    key: "featureProtection",
+    label: "ほくろ・シワ・眼鏡などの保護",
+    status: "pass",
+    description: "元写真のピクセルをそのまま使用しています（描き直しなし）。",
+    note: "元写真ピクセル使用",
+  },
+  {
+    key: "aiArtifact",
+    label: "AIっぽさチェック",
+    status: "pass",
+    description: "AIによる生成・補正は使用していません。",
+    note: "AI未使用",
+  },
+  {
+    key: "overexposure",
+    label: "白飛びチェック",
+    status: "pending",
+    description: "白飛びの自動判定は行っていません。",
+    note: "未実装",
+  },
+];
+
 type StatusState = {
   status: IeiPhotoJobStatus | "idle";
   progress: number;
@@ -57,10 +100,17 @@ const IDLE_STATUS: StatusState = { status: "idle", progress: 0, label: "" };
 
 export default function IeiPhotoPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [afterUrl, setAfterUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [mode, setMode] = useState<IeiPhotoMode>(IEI_PHOTO_DEFAULT_MODE);
   const [statusState, setStatusState] = useState<StatusState>(IDLE_STATUS);
   const [exports, setExports] = useState<IeiPhotoExports | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<boolean>(false);
+
+  // 基準写真（親データ）。各サイズはここから派生させる。
+  const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [baseReady, setBaseReady] = useState<boolean>(false);
 
   // 進行中タイマーの管理（アンマウント時にクリア）
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -70,21 +120,37 @@ export default function IeiPhotoPage() {
     timersRef.current = [];
   }, []);
 
-  // オブジェクト URL の解放
+  // ObjectURL の解放（アンマウント時）
   useEffect(() => {
     return () => {
       clearTimers();
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
       }
+      if (afterUrl) {
+        URL.revokeObjectURL(afterUrl);
+      }
     };
-  }, [previewUrl, clearTimers]);
+  }, [previewUrl, afterUrl, clearTimers]);
+
+  const resetResults = useCallback(() => {
+    setExports(null);
+    setStatusState(IDLE_STATUS);
+    setError(null);
+    setBaseReady(false);
+    baseCanvasRef.current = null;
+    setAfterUrl((prev) => {
+      if (prev) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
+  }, []);
 
   const handleSelectFile = useCallback(
     (file: File) => {
       clearTimers();
-      setStatusState(IDLE_STATUS);
-      setExports(null);
+      resetResults();
       setPreviewUrl((prev) => {
         if (prev) {
           URL.revokeObjectURL(prev);
@@ -93,13 +159,12 @@ export default function IeiPhotoPage() {
       });
       setFileName(file.name);
     },
-    [clearTimers],
+    [clearTimers, resetResults],
   );
 
   const handleClear = useCallback(() => {
     clearTimers();
-    setStatusState(IDLE_STATUS);
-    setExports(null);
+    resetResults();
     setFileName(null);
     setPreviewUrl((prev) => {
       if (prev) {
@@ -107,23 +172,77 @@ export default function IeiPhotoPage() {
       }
       return null;
     });
-  }, [clearTimers]);
+  }, [clearTimers, resetResults]);
 
   const isProcessing =
-    statusState.status !== "idle" && statusState.status !== "completed";
+    statusState.status !== "idle" &&
+    statusState.status !== "completed" &&
+    statusState.status !== "failed";
   const isCompleted = statusState.status === "completed";
 
   /**
-   * 処理開始（モック動作）。
-   * 実画像処理は行わず、解析中 → 基準写真作成中 → 完了 と擬似的に進行させる。
-   * 実処理は将来 lib/iei-photo/mock-job.ts 経由で外部サービスに差し替える。
+   * 基準写真を作成し、After プレビュー生成と出力ボタンの有効化を行う。
+   * 失敗時はエラー表示し、ステータスを失敗にする。
+   */
+  const buildBasePhoto = useCallback(async (sourceUrl: string) => {
+    try {
+      const canvas = await createBasePhotoFromImage(sourceUrl);
+      baseCanvasRef.current = canvas;
+
+      // After プレビュー用に基準写真を ObjectURL 化
+      const previewBlob = await exportBaseFromBase(canvas);
+      const url = URL.createObjectURL(previewBlob);
+      setAfterUrl((prev) => {
+        if (prev) {
+          URL.revokeObjectURL(prev);
+        }
+        return url;
+      });
+
+      setExports({
+        base: "ready",
+        tesatsu: "ready",
+        yotsugiri: "ready",
+        monitor169: "ready",
+      });
+      setBaseReady(true);
+    } catch (e) {
+      baseCanvasRef.current = null;
+      setBaseReady(false);
+      setExports(null);
+      setError(
+        e instanceof Error
+          ? e.message
+          : "基準写真の作成に失敗しました。",
+      );
+      setStatusState({ status: "failed", progress: 100, label: "失敗" });
+    }
+  }, []);
+
+  /**
+   * 処理開始（モック進行 → 完了時に基準写真を実生成）。
+   * 解析中 → 基準写真作成中 → 品質チェック中 → 完了。
+   * 画像処理本体（AI 等）は使わず、完了時にブラウザ内 Canvas で基準写真のみ作成する。
    */
   const handleStart = useCallback(() => {
-    if (!previewUrl || isProcessing) {
+    if (!previewUrl) {
+      setError("先に写真をアップロードしてください。");
+      return;
+    }
+    if (isProcessing) {
       return;
     }
     clearTimers();
+    setError(null);
     setExports(null);
+    setBaseReady(false);
+    baseCanvasRef.current = null;
+    setAfterUrl((prev) => {
+      if (prev) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
 
     let cumulativeDelay = 0;
     IEI_PHOTO_MOCK_STEPS.forEach((step) => {
@@ -134,26 +253,42 @@ export default function IeiPhotoPage() {
           label: step.label,
         });
         if (step.status === "completed") {
-          // MVP: 実画像が無いため出力はすべて null
-          setExports({
-            base: null,
-            tesatsu: null,
-            yotsugiri: null,
-            monitor169: null,
-          });
+          void buildBasePhoto(previewUrl);
         }
       }, cumulativeDelay);
       timersRef.current.push(timer);
       cumulativeDelay += step.delayMs;
     });
-  }, [previewUrl, isProcessing, clearTimers]);
+  }, [previewUrl, isProcessing, clearTimers, buildBasePhoto]);
 
-  const handleExport = useCallback((kind: keyof IeiPhotoExports) => {
-    // MVP: 実出力は未実装。将来はここで /api/iei-photo/export を呼び出してダウンロードする。
-    window.alert(
-      `「${kind}」の出力はまだ実装されていません。基準写真の生成処理を実装後に有効化されます。`,
-    );
-  }, []);
+  /**
+   * 出力（基準写真から各サイズを派生させてダウンロード）。
+   * すべてブラウザ内 Canvas 処理。AI は不使用。
+   */
+  const handleExport = useCallback(
+    async (kind: keyof IeiPhotoExports) => {
+      const base = baseCanvasRef.current;
+      if (!base) {
+        setError(
+          "出力できる基準写真がありません。写真をアップロードして処理を完了してください。",
+        );
+        return;
+      }
+      setExporting(true);
+      setError(null);
+      try {
+        const blob = await exportFromBaseByKind(base, kind);
+        downloadBlob(blob, filenameForKind(kind));
+      } catch (e) {
+        setError(
+          e instanceof Error ? e.message : "出力に失敗しました。",
+        );
+      } finally {
+        setExporting(false);
+      }
+    },
+    [],
+  );
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
@@ -176,6 +311,16 @@ export default function IeiPhotoPage() {
           ))}
         </ul>
       </section>
+
+      {/* エラー表示 */}
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm font-semibold text-rose-700"
+        >
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="grid gap-6">
@@ -219,13 +364,19 @@ export default function IeiPhotoPage() {
         <div className="grid gap-6">
           <IeiPhotoPreview
             beforeUrl={previewUrl}
-            afterUrl={null}
+            afterUrl={afterUrl}
             completed={isCompleted}
           />
-          <IeiPhotoQualityCheck items={INITIAL_QUALITY_CHECKS} />
+          <IeiPhotoQualityCheck
+            items={
+              isCompleted && baseReady
+                ? COMPLETED_QUALITY_CHECKS
+                : INITIAL_QUALITY_CHECKS
+            }
+          />
           <IeiPhotoExportButtons
             exports={exports}
-            enabled={isCompleted}
+            enabled={isCompleted && baseReady && !exporting}
             onExport={handleExport}
           />
         </div>

@@ -51,6 +51,11 @@ export default function IeiPhotoQualityCheck({
                 <p className="mt-1 text-xs leading-5 text-slate-600">
                   {item.description}
                 </p>
+                {item.note && (
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    {item.note}
+                  </p>
+                )}
               </div>
               <span
                 className={cn(
