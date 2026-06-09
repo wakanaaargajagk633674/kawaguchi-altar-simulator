@@ -147,6 +147,19 @@ RUNPOD_API_KEY=<runpod-api-key>
 `RUNPOD_ENDPOINT_URL` と `RUNPOD_API_KEY`（または自前 worker の `REMBG_WORKER_URL`／必要なら `REMBG_WORKER_TOKEN`）
 を設定する必要があります。未設定だと UI に設定不足エラーが表示されます。
 
+## GHCR へビルド/Push（GitHub Actions・ローカル Docker 不要）
+ローカルに Docker が無くても、GitHub Actions 上で `Dockerfile.runpod` をビルドして
+GitHub Container Registry（GHCR）へ push できます。
+
+1. GitHub の **Actions タブ → 「Build rembg worker image」→ Run workflow** で手動実行。
+2. 成功すると **Packages** に GHCR イメージが作られます：
+   - `ghcr.io/<owner>/<repo>/iei-rembg-worker:latest`
+   - `ghcr.io/<owner>/<repo>/iei-rembg-worker:sha-<commit>`
+3. RunPod Serverless Endpoint の **Worker Image** に、その GHCR イメージを指定します。
+4. Package が **Private** の場合、RunPod が pull できるよう権限設定（pull 用トークン等）が必要なことがあります。
+5. うまくいかない場合は、一時的に **Package の visibility を Public** にする選択肢もあります
+   （機微情報を含まないイメージである前提で）。
+
 ## 環境変数（Next.js 側）
 | 変数 | 用途 |
 | --- | --- |
