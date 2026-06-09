@@ -8,21 +8,24 @@ import {
 } from "@/lib/iei-photo/export-sizes";
 
 type IeiPhotoExportButtonsProps = {
-  /** 出力結果。各値が null の場合はまだ生成されていない（MVP では常に null） */
+  /** 出力結果。各値が null の場合はまだ生成されていない */
   exports: IeiPhotoExports | null;
   /** 出力ボタンを操作できるか（処理完了後に有効化） */
   enabled: boolean;
   onExport: (kind: keyof IeiPhotoExports) => void;
+  /** すべて一括ダウンロード */
+  onExportAll: () => void;
 };
 
 /**
- * 出力ボタン（基準写真 / 手札 / 四つ切り / 16:9モニター用）。
- * MVP では実画像が無いため、押下しても結果は null（未実装）である旨を扱う。
+ * 出力ボタン（基準写真 / 手札 / 四つ切り / 16:9モニター用）と一括ダウンロード。
+ * すべて調整後の基準写真を親データとして、ブラウザ内 Canvas で書き出す。
  */
 export default function IeiPhotoExportButtons({
   exports,
   enabled,
   onExport,
+  onExportAll,
 }: IeiPhotoExportButtonsProps) {
   return (
     <section className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
@@ -32,7 +35,7 @@ export default function IeiPhotoExportButtons({
           サイズを選んで出力
         </h2>
         <p className="mt-1 text-sm text-slate-600">
-          まず基準写真を作成し、手札・四つ切り・16:9 はそこから切り出します（出力処理は未実装）。
+          まず基準写真を作成し、手札・四つ切り・16:9 はそこから派生させます。
         </p>
       </div>
 
@@ -72,6 +75,27 @@ export default function IeiPhotoExportButtons({
             </button>
           );
         })}
+      </div>
+
+      {/* 一括ダウンロード */}
+      <div className="mt-4 border-t border-stone-200 pt-4">
+        <button
+          type="button"
+          disabled={!enabled}
+          onClick={onExportAll}
+          className={cn(
+            "w-full rounded-lg px-4 py-3 text-base font-semibold transition",
+            "focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2",
+            enabled
+              ? "bg-slate-900 text-white hover:bg-slate-800"
+              : "cursor-not-allowed bg-stone-200 text-stone-400",
+          )}
+        >
+          すべてダウンロード（4ファイル）
+        </button>
+        <p className="mt-2 text-xs leading-5 text-slate-500">
+          ブラウザによっては複数ファイルの連続ダウンロードが確認される場合があります。
+        </p>
       </div>
     </section>
   );

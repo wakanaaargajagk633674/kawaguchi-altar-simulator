@@ -52,6 +52,11 @@ export default function IeiPhotoAdjustmentPanel({
           const key = slider.key as IeiPhotoAdjustmentKey;
           const range = IEI_PHOTO_ADJUSTMENT_RANGES[key];
           const value = adjustments[key];
+          const isOffset = key === "offsetX" || key === "offsetY";
+          // 位置は符号付き（例: +10 / -8）、その他は単位付き（例: 105%）
+          const valueLabel = isOffset
+            ? `${value > 0 ? "+" : ""}${value}`
+            : `${value}${slider.unit}`;
 
           return (
             <div key={key}>
@@ -62,9 +67,8 @@ export default function IeiPhotoAdjustmentPanel({
                 >
                   {slider.label}
                 </label>
-                <span className="text-xs tabular-nums text-slate-500">
-                  {value}
-                  {slider.unit}
+                <span className="text-xs font-semibold tabular-nums text-slate-600">
+                  {valueLabel}
                 </span>
               </div>
               <input

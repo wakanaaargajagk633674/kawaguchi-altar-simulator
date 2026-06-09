@@ -13,6 +13,7 @@ import {
   IEI_PHOTO_NOTICES,
 } from "@/lib/iei-photo/image-rules";
 import { IEI_PHOTO_MOCK_STEPS } from "@/lib/iei-photo/mock-job";
+import { IEI_PHOTO_EXPORT_ORDER } from "@/lib/iei-photo/export-sizes";
 import {
   IEI_PHOTO_DEFAULT_ADJUSTMENTS,
   type IeiPhotoAdjustmentKey,
@@ -20,13 +21,13 @@ import {
 import {
   loadImageElement,
   renderBasePhotoCanvas,
-  exportBaseFromBase,
   exportFromBaseByKind,
   filenameForKind,
   downloadBlob,
 } from "@/lib/iei-photo/client-export";
 import type {
   IeiPhotoAdjustments,
+  IeiPhotoExportKind,
   IeiPhotoExports,
   IeiPhotoJobStatus,
   IeiPhotoMode,
@@ -114,15 +115,19 @@ const IDLE_STATUS: StatusState = { status: "idle", progress: 0, label: "" };
 
 /** プレビュー再生成の debounce（ms） */
 const PREVIEW_DEBOUNCE_MS = 250;
+/** 一括ダウンロード時のファイル間の間隔（ms） */
+const BULK_DOWNLOAD_GAP_MS = 400;
 
 export default function IeiPhotoPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [afterUrl, setAfterUrl] = useState<string | null>(null);
+  const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [mode, setMode] = useState<IeiPhotoMode>(IEI_PHOTO_DEFAULT_MODE);
   const [adjustments, setAdjustments] = useState<IeiPhotoAdjustments>(
     IEI_PHOTO_DEFAULT_ADJUSTMENTS,
   );
+  const [previewKind, setPreviewKind] = useState<IeiPhotoExportKind>("base");
+  const [showGuides, setShowGuides] = useState<boolean>(true);
   const [statusState, setStatusState] = useState<StatusState>(IDLE_STATUS);
   const [exports, setExports] = useState<IeiPhotoExports | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,13 +142,13 @@ export default function IeiPhotoPage() {
 
   // ObjectURL の最新値を保持し、アンマウント時に解放するための ref
   const previewUrlRef = useRef<string | null>(null);
-  const afterUrlRef = useRef<string | null>(null);
+  const outputUrlRef = useRef<string | null>(null);
   useEffect(() => {
     previewUrlRef.current = previewUrl;
   }, [previewUrl]);
   useEffect(() => {
-    afterUrlRef.current = afterUrl;
-  }, [afterUrl]);
+    outputUrlRef.current = outputUrl;
+  }, [outputUrl]);
 
   // 進行中タイマーの管理
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -159,14 +164,14 @@ export default function IeiPhotoPage() {
       if (previewUrlRef.current) {
         URL.revokeObjectURL(previewUrlRef.current);
       }
-      if (afterUrlRef.current) {
-        URL.revokeObjectURL(afterUrlRef.current);
+      if (outputUrlRef.current) {
+        URL.revokeObjectURL(outputUrlRef.current);
       }
     };
   }, []);
 
-  const replaceAfterUrl = useCallback((next: string | null) => {
-    setAfterUrl((prev) => {
+  const replaceOutputUrl = useCallback((next: string | null) => {
+    setOutputUrl((prev) => {
       if (prev && prev !== next) {
         URL.revokeObjectURL(prev);
       }
@@ -180,8 +185,8 @@ export default function IeiPhotoPage() {
     setError(null);
     setHasBase(false);
     baseCanvasRef.current = null;
-    replaceAfterUrl(null);
-  }, [replaceAfterUrl]);
+    replaceOutputUrl(null);
+  }, [replaceOutputUrl]);
 
   const handleSelectFile = useCallback(
     (file: File) => {
@@ -245,8 +250,8 @@ export default function IeiPhotoPage() {
     setAdjustments(IEI_PHOTO_DEFAULT_ADJUSTMENTS);
   }, []);
 
-  // 補正値の変更に応じて基準写真プレビューを再生成（debounce）。
-  // 処理開始前でも補正後の基準写真イメージを確認できる。
+  // 補正値・プレビュー種類の変更に応じて、選択中サイズのプレビューを再生成（debounce）。
+  // 処理開始前でも補正後の出力イメージを確認できる。基準写真は常に最新化しておく。
   useEffect(() => {
     const img = imgRef.current;
     if (!img || !imgLoaded) {
@@ -262,12 +267,12 @@ export default function IeiPhotoPage() {
         baseCanvasRef.current = canvas;
         setHasBase(true);
         setError(null);
-        exportBaseFromBase(canvas)
+        exportFromBaseByKind(canvas, previewKind)
           .then((blob) => {
             if (cancelled) {
               return;
             }
-            replaceAfterUrl(URL.createObjectURL(blob));
+            replaceOutputUrl(URL.createObjectURL(blob));
           })
           .catch(() => {
             if (!cancelled) {
@@ -289,7 +294,7 @@ export default function IeiPhotoPage() {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [adjustments, imgLoaded, replaceAfterUrl]);
+  }, [adjustments, imgLoaded, previewKind, replaceOutputUrl]);
 
   /**
    * 処理開始（モック進行 → 完了時に出力を有効化）。
@@ -347,7 +352,7 @@ export default function IeiPhotoPage() {
 
   /**
    * 出力（調整後の基準写真を親データに各サイズを派生してダウンロード）。
-   * すべてブラウザ内 Canvas 処理。AI は不使用。
+   * すべてブラウザ内 Canvas 処理。AI は不使用。ガイド線は含めない。
    */
   const handleExport = useCallback(async (kind: keyof IeiPhotoExports) => {
     const base = baseCanvasRef.current;
@@ -364,6 +369,33 @@ export default function IeiPhotoPage() {
       downloadBlob(blob, filenameForKind(kind));
     } catch (e) {
       setError(e instanceof Error ? e.message : "出力に失敗しました。");
+    } finally {
+      setExporting(false);
+    }
+  }, []);
+
+  /** すべての出力サイズを順番にダウンロードする。 */
+  const handleExportAll = useCallback(async () => {
+    const base = baseCanvasRef.current;
+    if (!base) {
+      setError(
+        "出力できる基準写真がありません。写真をアップロードして処理を完了してください。",
+      );
+      return;
+    }
+    setExporting(true);
+    setError(null);
+    try {
+      for (const kind of IEI_PHOTO_EXPORT_ORDER) {
+        const blob = await exportFromBaseByKind(base, kind);
+        downloadBlob(blob, filenameForKind(kind));
+        // ブラウザの連続ダウンロード制限を避けるため少し間隔を空ける。
+        await new Promise((resolve) =>
+          setTimeout(resolve, BULK_DOWNLOAD_GAP_MS),
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "一括出力に失敗しました。");
     } finally {
       setExporting(false);
     }
@@ -449,7 +481,11 @@ export default function IeiPhotoPage() {
         <div className="grid gap-6">
           <IeiPhotoPreview
             beforeUrl={previewUrl}
-            afterUrl={afterUrl}
+            outputUrl={outputUrl}
+            previewKind={previewKind}
+            onPreviewKindChange={setPreviewKind}
+            showGuides={showGuides}
+            onToggleGuides={setShowGuides}
             completed={isCompleted}
           />
           <IeiPhotoQualityCheck
@@ -463,6 +499,7 @@ export default function IeiPhotoPage() {
             exports={exports}
             enabled={isCompleted && hasBase && !exporting}
             onExport={handleExport}
+            onExportAll={handleExportAll}
           />
         </div>
       </div>
