@@ -70,7 +70,7 @@ export default function IeiPhotoExportButtons({
                 {size.description}
               </span>
               <span className="mt-2 block text-xs font-semibold text-slate-400">
-                {ready ? "ダウンロード可能" : "処理完了後に出力できます"}
+                {ready ? "ダウンロード可能" : "写真をアップロードすると出力できます"}
               </span>
             </button>
           );

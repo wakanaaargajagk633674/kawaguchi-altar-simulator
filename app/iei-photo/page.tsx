@@ -63,11 +63,11 @@ const INITIAL_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
 ];
 
 /**
- * 処理完了後の品質チェック表示。
+ * 基準写真が用意できた後の品質チェック表示。
  * 実判定は行わず、ブラウザ内 Canvas で「元写真ピクセルのトリミング・補正のみ」を
  * 行っている事実を表示する（AI は未使用）。
  */
-const COMPLETED_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
+const READY_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
   {
     key: "faceSimilarity",
     label: "顔の類似度",
@@ -114,7 +114,7 @@ type StatusState = {
 const IDLE_STATUS: StatusState = { status: "idle", progress: 0, label: "" };
 
 /** プレビュー再生成の debounce（ms） */
-const PREVIEW_DEBOUNCE_MS = 250;
+const PREVIEW_DEBOUNCE_MS = 200;
 /** 一括ダウンロード時のファイル間の間隔（ms） */
 const BULK_DOWNLOAD_GAP_MS = 400;
 
@@ -129,7 +129,6 @@ export default function IeiPhotoPage() {
   const [previewKind, setPreviewKind] = useState<IeiPhotoExportKind>("base");
   const [showGuides, setShowGuides] = useState<boolean>(true);
   const [statusState, setStatusState] = useState<StatusState>(IDLE_STATUS);
-  const [exports, setExports] = useState<IeiPhotoExports | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<boolean>(false);
   const [hasBase, setHasBase] = useState<boolean>(false);
@@ -179,8 +178,35 @@ export default function IeiPhotoPage() {
     });
   }, []);
 
+  /**
+   * 補正値・選択中サイズで基準写真を作り直し、プレビュー画像を生成する。
+   * 基準写真が用意できた時点で出力も可能になる（モックの「処理開始」完了は不要）。
+   */
+  const generatePreview = useCallback(
+    async (adj: IeiPhotoAdjustments, kind: IeiPhotoExportKind) => {
+      const img = imgRef.current;
+      if (!img) {
+        return;
+      }
+      try {
+        const canvas = renderBasePhotoCanvas(img, adj);
+        baseCanvasRef.current = canvas;
+        setHasBase(true);
+        setError(null);
+        const blob = await exportFromBaseByKind(canvas, kind);
+        replaceOutputUrl(URL.createObjectURL(blob));
+      } catch (e) {
+        baseCanvasRef.current = null;
+        setHasBase(false);
+        setError(
+          e instanceof Error ? e.message : "基準写真の作成に失敗しました。",
+        );
+      }
+    },
+    [replaceOutputUrl],
+  );
+
   const resetResults = useCallback(() => {
-    setExports(null);
     setStatusState(IDLE_STATUS);
     setError(null);
     setHasBase(false);
@@ -205,17 +231,18 @@ export default function IeiPhotoPage() {
       });
       setFileName(file.name);
 
-      // 元画像を一度だけ読み込み、以降のプレビュー/出力で再利用する。
+      // 元画像を一度だけ読み込み、即座にプレビューを生成する。
       loadImageElement(url)
         .then((img) => {
           imgRef.current = img;
           setImgLoaded(true);
+          void generatePreview(IEI_PHOTO_DEFAULT_ADJUSTMENTS, previewKind);
         })
         .catch(() => {
           setError("画像の読み込みに失敗しました。別の画像でお試しください。");
         });
     },
-    [clearTimers, resetResults],
+    [clearTimers, resetResults, generatePreview, previewKind],
   );
 
   const handleClear = useCallback(() => {
@@ -237,7 +264,6 @@ export default function IeiPhotoPage() {
     statusState.status !== "idle" &&
     statusState.status !== "completed" &&
     statusState.status !== "failed";
-  const isCompleted = statusState.status === "completed";
 
   const handleAdjustmentChange = useCallback(
     (key: IeiPhotoAdjustmentKey, value: number) => {
@@ -250,56 +276,21 @@ export default function IeiPhotoPage() {
     setAdjustments(IEI_PHOTO_DEFAULT_ADJUSTMENTS);
   }, []);
 
-  // 補正値・プレビュー種類の変更に応じて、選択中サイズのプレビューを再生成（debounce）。
-  // 処理開始前でも補正後の出力イメージを確認できる。基準写真は常に最新化しておく。
+  // 補正値・プレビュー種類の変更に応じてプレビューを再生成（debounce）。
   useEffect(() => {
-    const img = imgRef.current;
-    if (!img || !imgLoaded) {
+    if (!imgLoaded) {
       return;
     }
-    let cancelled = false;
     const handle = setTimeout(() => {
-      try {
-        const canvas = renderBasePhotoCanvas(img, adjustments);
-        if (cancelled) {
-          return;
-        }
-        baseCanvasRef.current = canvas;
-        setHasBase(true);
-        setError(null);
-        exportFromBaseByKind(canvas, previewKind)
-          .then((blob) => {
-            if (cancelled) {
-              return;
-            }
-            replaceOutputUrl(URL.createObjectURL(blob));
-          })
-          .catch(() => {
-            if (!cancelled) {
-              setError("プレビューの生成に失敗しました。");
-            }
-          });
-      } catch (e) {
-        if (!cancelled) {
-          baseCanvasRef.current = null;
-          setHasBase(false);
-          setError(
-            e instanceof Error ? e.message : "基準写真の作成に失敗しました。",
-          );
-        }
-      }
+      void generatePreview(adjustments, previewKind);
     }, PREVIEW_DEBOUNCE_MS);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [adjustments, imgLoaded, previewKind, replaceOutputUrl]);
+    return () => clearTimeout(handle);
+  }, [adjustments, previewKind, imgLoaded, generatePreview]);
 
   /**
-   * 処理開始（モック進行 → 完了時に出力を有効化）。
+   * 処理ステータスのモック表示（任意）。
    * 解析中 → 基準写真作成中 → 品質チェック中 → 完了。
-   * 基準写真は補正プレビューで常に最新化されているため、完了時はそれを採用する。
+   * 出力の可否は基準写真の有無で決まるため、これはあくまで進行表示のデモ。
    */
   const handleStart = useCallback(() => {
     if (!previewUrl) {
@@ -311,7 +302,6 @@ export default function IeiPhotoPage() {
     }
     clearTimers();
     setError(null);
-    setExports(null);
 
     let cumulativeDelay = 0;
     IEI_PHOTO_MOCK_STEPS.forEach((step) => {
@@ -321,34 +311,11 @@ export default function IeiPhotoPage() {
           progress: step.progress,
           label: step.label,
         });
-        if (step.status === "completed") {
-          // 補正プレビューで生成済みの基準写真を採用。万一無ければ再生成を試みる。
-          if (!baseCanvasRef.current && imgRef.current) {
-            try {
-              baseCanvasRef.current = renderBasePhotoCanvas(
-                imgRef.current,
-                adjustments,
-              );
-              setHasBase(true);
-            } catch (e) {
-              setError(
-                e instanceof Error
-                  ? e.message
-                  : "基準写真の作成に失敗しました。",
-              );
-            }
-          }
-          if (baseCanvasRef.current) {
-            setExports(READY_EXPORTS);
-          } else {
-            setStatusState({ status: "failed", progress: 100, label: "失敗" });
-          }
-        }
       }, cumulativeDelay);
       timersRef.current.push(timer);
       cumulativeDelay += step.delayMs;
     });
-  }, [previewUrl, isProcessing, clearTimers, adjustments]);
+  }, [previewUrl, isProcessing, clearTimers]);
 
   /**
    * 出力（調整後の基準写真を親データに各サイズを派生してダウンロード）。
@@ -358,7 +325,7 @@ export default function IeiPhotoPage() {
     const base = baseCanvasRef.current;
     if (!base) {
       setError(
-        "出力できる基準写真がありません。写真をアップロードして処理を完了してください。",
+        "出力できる基準写真がありません。写真をアップロードしてください。",
       );
       return;
     }
@@ -379,7 +346,7 @@ export default function IeiPhotoPage() {
     const base = baseCanvasRef.current;
     if (!base) {
       setError(
-        "出力できる基準写真がありません。写真をアップロードして処理を完了してください。",
+        "出力できる基準写真がありません。写真をアップロードしてください。",
       );
       return;
     }
@@ -400,6 +367,8 @@ export default function IeiPhotoPage() {
       setExporting(false);
     }
   }, []);
+
+  const canExport = hasBase && !exporting;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
@@ -446,7 +415,7 @@ export default function IeiPhotoPage() {
             adjustments={adjustments}
             onChange={handleAdjustmentChange}
             onReset={handleResetAdjustments}
-            disabled={isProcessing || !imgLoaded}
+            disabled={!imgLoaded}
           />
           <IeiPhotoModeSelector
             selectedMode={mode}
@@ -454,7 +423,7 @@ export default function IeiPhotoPage() {
             disabled={isProcessing}
           />
 
-          {/* 処理開始ボタン */}
+          {/* 処理開始ボタン（進行表示のデモ。出力は基準写真ができ次第すぐ可能） */}
           <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
             <button
               type="button"
@@ -462,7 +431,7 @@ export default function IeiPhotoPage() {
               disabled={!previewUrl || isProcessing}
               className="w-full rounded-lg bg-amber-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isProcessing ? "処理中…" : "処理を開始する"}
+              {isProcessing ? "処理中…" : "処理を開始する（進行表示）"}
             </button>
             {!previewUrl && (
               <p className="mt-2 text-center text-xs text-slate-500">
@@ -486,18 +455,14 @@ export default function IeiPhotoPage() {
             onPreviewKindChange={setPreviewKind}
             showGuides={showGuides}
             onToggleGuides={setShowGuides}
-            completed={isCompleted}
+            completed={hasBase}
           />
           <IeiPhotoQualityCheck
-            items={
-              isCompleted && hasBase
-                ? COMPLETED_QUALITY_CHECKS
-                : INITIAL_QUALITY_CHECKS
-            }
+            items={hasBase ? READY_QUALITY_CHECKS : INITIAL_QUALITY_CHECKS}
           />
           <IeiPhotoExportButtons
-            exports={exports}
-            enabled={isCompleted && hasBase && !exporting}
+            exports={hasBase ? READY_EXPORTS : null}
+            enabled={canExport}
             onExport={handleExport}
             onExportAll={handleExportAll}
           />
