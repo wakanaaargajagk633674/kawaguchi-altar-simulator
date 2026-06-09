@@ -604,7 +604,7 @@ export default function IeiPhotoPage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <div className="grid gap-6">
           <IeiPhotoUploader
             previewUrl={previewUrl}
@@ -627,6 +627,24 @@ export default function IeiPhotoPage() {
             hasCutout={hasCutout}
             disabled={isProcessing || !imgLoaded}
           />
+          {/* モバイル用の固定ライブプレビュー（補正スライダー操作中も常に見える）。
+              デスクトップは右カラムのプレビューが sticky になるため非表示。 */}
+          {outputUrl && (
+            <div className="sticky top-0 z-20 mb-1 rounded-lg border border-stone-200 bg-white/95 p-2 shadow-sm backdrop-blur lg:hidden">
+              <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                プレビュー（補正中に反映）
+              </p>
+              <div className="flex justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={outputUrl}
+                  alt="補正プレビュー"
+                  className="max-h-44 w-auto rounded border border-stone-200 object-contain"
+                />
+              </div>
+            </div>
+          )}
+
           <div ref={adjustmentRef}>
             <IeiPhotoAdjustmentPanel
               adjustments={adjustments}
@@ -666,7 +684,10 @@ export default function IeiPhotoPage() {
           />
         </div>
 
-        <div ref={previewRef} className="grid gap-6 scroll-mt-4">
+        <div
+          ref={previewRef}
+          className="grid gap-6 scroll-mt-4 lg:sticky lg:top-4 lg:self-start"
+        >
           <IeiPhotoPreview
             beforeUrl={previewUrl}
             outputUrl={outputUrl}
