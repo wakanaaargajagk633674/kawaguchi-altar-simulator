@@ -46,11 +46,39 @@ export const IEI_PHOTO_ADJUSTMENT_SLIDERS: {
   { key: "offsetY", label: "縦位置", unit: "" },
 ];
 
+/**
+ * 自動補正プリセット（簡易）。手動補正と併用可能。
+ * 基準100からの差分として手動値に加算する（既定の手動値なら結果はこの値そのもの）。
+ */
+export const IEI_PHOTO_AUTO_CORRECT_PRESET = {
+  brightness: 106,
+  contrast: 104,
+  saturation: 102,
+} as const;
+
 function clampValue(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) {
     return min;
   }
   return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * 自動補正を手動補正値に重ねた結果を返す（明るさ・コントラスト・彩度に差分を加算）。
+ * 範囲外はクランプ。zoom / offset は変更しない。
+ */
+export function applyAutoCorrect(
+  adjustments: IeiPhotoAdjustments,
+): IeiPhotoAdjustments {
+  return clampAdjustments({
+    ...adjustments,
+    brightness:
+      adjustments.brightness + (IEI_PHOTO_AUTO_CORRECT_PRESET.brightness - 100),
+    contrast:
+      adjustments.contrast + (IEI_PHOTO_AUTO_CORRECT_PRESET.contrast - 100),
+    saturation:
+      adjustments.saturation + (IEI_PHOTO_AUTO_CORRECT_PRESET.saturation - 100),
+  });
 }
 
 /** 調整値を範囲内に収め、欠損は既定値で補う。 */

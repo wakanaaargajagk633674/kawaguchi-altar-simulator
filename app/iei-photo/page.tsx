@@ -25,6 +25,7 @@ import { requestBackgroundRemoval } from "@/lib/iei-photo/background-client";
 import { IEI_PHOTO_DEFAULT_BACKGROUND } from "@/lib/iei-photo/backgrounds";
 import {
   IEI_PHOTO_DEFAULT_ADJUSTMENTS,
+  applyAutoCorrect,
   type IeiPhotoAdjustmentKey,
 } from "@/lib/iei-photo/adjustments";
 import {
@@ -149,6 +150,7 @@ export default function IeiPhotoPage() {
   const [adjustments, setAdjustments] = useState<IeiPhotoAdjustments>(
     IEI_PHOTO_DEFAULT_ADJUSTMENTS,
   );
+  const [autoCorrect, setAutoCorrect] = useState<boolean>(false);
   const [previewKind, setPreviewKind] = useState<IeiPhotoExportKind>("base");
   const [showGuides, setShowGuides] = useState<boolean>(true);
   const [background, setBackground] = useState<IeiPhotoBackgroundSettings>(
@@ -282,6 +284,7 @@ export default function IeiPhotoPage() {
       clearTimers();
       resetResults();
       setAdjustments(IEI_PHOTO_DEFAULT_ADJUSTMENTS);
+      setAutoCorrect(false);
       setImgLoaded(false);
       imgRef.current = null;
       fileRef.current = file;
@@ -352,20 +355,36 @@ export default function IeiPhotoPage() {
     [],
   );
 
+  // 自動補正 ON の場合は手動補正に自動補正を重ねた値を返す。
+  const computeEffective = useCallback(
+    (adj: IeiPhotoAdjustments): IeiPhotoAdjustments =>
+      autoCorrect ? applyAutoCorrect(adj) : adj,
+    [autoCorrect],
+  );
+
   const handleResetAdjustments = useCallback(() => {
     setAdjustments(IEI_PHOTO_DEFAULT_ADJUSTMENTS);
+    // リセット時は自動補正も解除する。
+    setAutoCorrect(false);
   }, []);
 
-  // 補正値・プレビュー種類の変更に応じてプレビューを再生成（debounce）。
+  // 補正値・自動補正・プレビュー種類・背景の変更に応じてプレビューを再生成（debounce）。
   useEffect(() => {
     if (!imgLoaded) {
       return;
     }
     const handle = setTimeout(() => {
-      void generatePreview(adjustments, previewKind, background);
+      void generatePreview(computeEffective(adjustments), previewKind, background);
     }, PREVIEW_DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [adjustments, previewKind, background, imgLoaded, generatePreview]);
+  }, [
+    adjustments,
+    previewKind,
+    background,
+    imgLoaded,
+    generatePreview,
+    computeEffective,
+  ]);
 
   /**
    * 「AI遺影写真を生成する」。
@@ -490,7 +509,7 @@ export default function IeiPhotoPage() {
       pendingUrl = null;
       setHasCutout(true);
       setInfo("背景切り抜き済み。選択した背景と合成して出力します。");
-      void generatePreview(adjustments, previewKind, background);
+      void generatePreview(computeEffective(adjustments), previewKind, background);
     } catch (e) {
       // 失敗時は古い切り抜き画像を残さない。
       if (pendingUrl) {
@@ -502,11 +521,18 @@ export default function IeiPhotoPage() {
       setInfo(null);
       setError(e instanceof Error ? e.message : "背景切り抜きに失敗しました。");
       // 元画像でのプレビューに戻す。
-      void generatePreview(adjustments, previewKind, background);
+      void generatePreview(computeEffective(adjustments), previewKind, background);
     } finally {
       setRemovingBg(false);
     }
-  }, [adjustments, previewKind, background, generatePreview, replaceCutoutUrl]);
+  }, [
+    adjustments,
+    previewKind,
+    background,
+    generatePreview,
+    replaceCutoutUrl,
+    computeEffective,
+  ]);
 
   const canExport = hasBase && !exporting;
 
@@ -581,6 +607,8 @@ export default function IeiPhotoPage() {
               adjustments={adjustments}
               onChange={handleAdjustmentChange}
               onReset={handleResetAdjustments}
+              autoCorrect={autoCorrect}
+              onToggleAutoCorrect={setAutoCorrect}
               disabled={!imgLoaded}
             />
           </div>

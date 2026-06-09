@@ -135,8 +135,17 @@ RUNPOD_API_KEY=<runpod-api-key>
 ```
 - ブラウザ → `/api/iei-photo/remove-background` → （サーバー側で）RunPod を呼ぶ、という流れ。
 - **APIキーはサーバー側のみで使用し、クライアントには露出しません。**
-- ※ Next.js Route Handler 側の RunPod 接続は現在 **TODO（未実装）** です。実装後に上記が有効化されます。
-  それまでは `REMBG_WORKER_URL`（FastAPI worker）をご利用ください。
+- Next.js Route Handler 側の RunPod 接続は **実装済み**（file→base64→`{input:{image_base64,filename}}`→`output.image_base64`→PNG）。
+
+### worker の優先順位（Next.js）
+1. `REMBG_WORKER_URL` があれば **self-hosted HTTP worker** を使用（優先）。
+2. 無く `RUNPOD_ENDPOINT_URL` ＋ `RUNPOD_API_KEY` があれば **RunPod Serverless** を使用。
+3. どちらも無ければ設定不足エラー。
+
+### Vercel での設定
+本番/プレビューで背景切り抜きを使うには、Vercel のプロジェクト環境変数に
+`RUNPOD_ENDPOINT_URL` と `RUNPOD_API_KEY`（または自前 worker の `REMBG_WORKER_URL`／必要なら `REMBG_WORKER_TOKEN`）
+を設定する必要があります。未設定だと UI に設定不足エラーが表示されます。
 
 ## 環境変数（Next.js 側）
 | 変数 | 用途 |
@@ -154,4 +163,4 @@ RUNPOD_API_KEY=<runpod-api-key>
 - **本番では認証トークン（`REMBG_WORKER_TOKEN` / `RUNPOD_API_KEY`）を必ず設定してください。**
 - **初回推論時に u2net 等のモデル（約170MB）を自動ダウンロード**するため、最初の1回だけ時間がかかります。
 - **CPU 実行では推論が遅い場合があります。** 大きすぎる画像は時間がかかる/失敗することがあるため、必要に応じて縮小してください。
-- 本番デプロイ（RunPod 等）は今回未実施。RunPod 接続の Next.js 実装も TODO（未実装）です。
+- RunPod 接続の Next.js 実装は完了。RunPod 本番 Endpoint の作成・Vercel への環境変数設定は別途必要。
