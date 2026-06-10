@@ -962,20 +962,17 @@ export default function IeiPhotoPage() {
               disabled={isProcessing || !imgLoaded || !hasBase}
             />
           )}
-          {/* AI生成後チェック + 脱AI処理（AI結果があるときのみ） */}
+          {/* 脱AI処理（AI結果があるときのみ） */}
           {hasAiResult && (
-            <>
-              <IeiPhotoAiQualityCheck />
-              <IeiPhotoDeAiPanel
-                strength={deAiStrength}
-                onChangeStrength={handleChangeDeAiStrength}
-                onApply={handleDeAi}
-                onRevert={handleRevertDeAi}
-                appliedStrength={deAiResult}
-                processing={deAiProcessing}
-                disabled={isProcessing || aiProcessing}
-              />
-            </>
+            <IeiPhotoDeAiPanel
+              strength={deAiStrength}
+              onChangeStrength={handleChangeDeAiStrength}
+              onApply={handleDeAi}
+              onRevert={handleRevertDeAi}
+              appliedStrength={deAiResult}
+              processing={deAiProcessing}
+              disabled={isProcessing || aiProcessing}
+            />
           )}
           <IeiPhotoBackgroundPanel
             settings={background}
@@ -985,9 +982,6 @@ export default function IeiPhotoPage() {
             removing={removingBg}
             hasCutout={hasCutout}
             disabled={isProcessing || !imgLoaded}
-          />
-          <IeiPhotoQualityCheck
-            items={hasBase ? READY_QUALITY_CHECKS : INITIAL_QUALITY_CHECKS}
           />
 
           {/* AI生成ボタン */}
@@ -1081,6 +1075,14 @@ export default function IeiPhotoPage() {
             onExportAll={handleExportAll}
           />
         </div>
+      </div>
+
+      {/* 目視確認・品質チェックは一番下部に表示 */}
+      <div className="mt-6 grid gap-6">
+        {hasAiResult && <IeiPhotoAiQualityCheck />}
+        <IeiPhotoQualityCheck
+          items={hasBase ? READY_QUALITY_CHECKS : INITIAL_QUALITY_CHECKS}
+        />
       </div>
     </main>
   );
