@@ -302,11 +302,7 @@ export default function IeiPhotoPage() {
         baseCanvasRef.current = canvas;
         setHasBase(true);
         setError(null);
-        // AI結果があるときは 16:9 余白も雲固定にせず AI画像をぼかして敷く。
-        const aiActive = aiEnhancedImgRef.current != null;
-        const blob = await exportFromBaseByKind(canvas, kind, bg, {
-          monitorFillFromBase: aiActive,
-        });
+        const blob = await exportFromBaseByKind(canvas, kind);
         replaceOutputUrl(URL.createObjectURL(blob));
       } catch (e) {
         baseCanvasRef.current = null;
@@ -772,9 +768,7 @@ export default function IeiPhotoPage() {
     setExporting(true);
     setError(null);
     try {
-      const blob = await exportFromBaseByKind(base, kind, background, {
-        monitorFillFromBase: aiEnhancedImgRef.current != null,
-      });
+      const blob = await exportFromBaseByKind(base, kind);
       downloadBlob(blob, filenameForKind(kind));
       setHasExported(true);
     } catch (e) {
@@ -782,7 +776,7 @@ export default function IeiPhotoPage() {
     } finally {
       setExporting(false);
     }
-  }, [background]);
+  }, []);
 
   /**
    * すべての出力サイズを1つの ZIP にまとめてダウンロードする。
@@ -797,9 +791,7 @@ export default function IeiPhotoPage() {
     setExporting(true);
     setError(null);
     try {
-      const zip = await exportAllZipFromBase(base, background, {
-        monitorFillFromBase: aiEnhancedImgRef.current != null,
-      });
+      const zip = await exportAllZipFromBase(base);
       downloadBlob(zip, "iei-photos.zip");
       setHasExported(true);
     } catch (e) {
@@ -807,7 +799,7 @@ export default function IeiPhotoPage() {
     } finally {
       setExporting(false);
     }
-  }, [background]);
+  }, []);
 
   const handleAdjust = useCallback(() => {
     adjustmentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });

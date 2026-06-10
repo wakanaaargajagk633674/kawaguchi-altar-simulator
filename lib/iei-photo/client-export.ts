@@ -339,43 +339,59 @@ export async function exportYotsugiriFromBase(
 }
 
 /**
+ * 基準写真を強くぼかして全面に cover 描画する（16:9 のボケ背景用）。
+ * 端のぼかしフェードを避けるため少しオーバースキャンして敷く。
+ */
+function drawBlurredCoverBackground(
+  ctx: CanvasRenderingContext2D,
+  src: CanvasImageSource,
+  srcWidth: number,
+  srcHeight: number,
+  destWidth: number,
+  destHeight: number,
+  blurPx: number,
+): void {
+  const scale = Math.max(destWidth / srcWidth, destHeight / srcHeight) * 1.15;
+  const drawWidth = srcWidth * scale;
+  const drawHeight = srcHeight * scale;
+  const dx = (destWidth - drawWidth) / 2;
+  const dy = (destHeight - drawHeight) / 2;
+  ctx.save();
+  ctx.filter = `blur(${blurPx}px)`;
+  ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
+  ctx.restore();
+}
+
+/**
  * 16:9 モニター用を書き出す。
- * 1920x1080 の横長キャンバスに、基準写真を縦長のまま中央へ contain 配置。
- * 左右余白は選択した背景タイプで埋めるだけ。AI で背景・服を生成しない。
+ * 1920x1080 の横長キャンバスに、基準写真（縦長）を中央へ contain 配置（全体が切れない）。
+ * 左右余白は「無地背景」や「切れた人物」ではなく、基準写真自体を強くぼかしたボケ背景＋
+ * 白ベールで自然に埋める。AI で横長生成はしない（中央配置のみ）。
  */
 export async function exportMonitor169FromBase(
   base: HTMLCanvasElement,
-  background?: IeiPhotoBackgroundSettings,
-  bgImage?: HTMLImageElement | null,
-  opts?: { fillFromBase?: boolean },
 ): Promise<Blob> {
   const { width, height } = IEI_PHOTO_EXPORT_SIZES.monitor169.pixelGuide;
   const canvas = createCanvas(width, height);
   const ctx = get2dContext(canvas);
-  if (opts?.fillFromBase) {
-    // AIモード: 雲固定の背景を使わず、基準写真（AI生成結果）自体をぼかして全面に敷く。
-    // 余白も AI 生成の見た目に馴染ませる（横長を AI 生成するわけではない）。
-    ctx.fillStyle = BASE_BG_COLOR;
-    ctx.fillRect(0, 0, width, height);
-    ctx.filter = "blur(28px)";
-    drawCover(ctx, base, base.width, base.height, width, height);
-    ctx.filter = "none";
-  } else {
-    fillBackground(ctx, width, height, background, bgImage);
-  }
+  // 背景: 強めのボケで全面を埋める → 白ベールで和らげ、中央の人物を引き立てる。
+  ctx.fillStyle = BASE_BG_COLOR;
+  ctx.fillRect(0, 0, width, height);
+  drawBlurredCoverBackground(ctx, base, base.width, base.height, width, height, 44);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.34)";
+  ctx.fillRect(0, 0, width, height);
+  // 中央に人物全体を contain（上下左右が切れないように配置）。
   drawContain(ctx, base, base.width, base.height, width, height);
   return canvasToJpegBlob(canvas);
 }
 
 /**
  * 種別に応じて基準写真から派生 Blob を生成する。
- * 背景設定は 16:9 の余白に反映する（base/手札/四つ切りは基準写真側に既に反映済み）。
+ * base/手札/四つ切りは基準写真（縦・背景焼き込み済み）から、16:9 は中央配置＋ボケ背景で生成する。
  */
 export async function exportFromBaseByKind(
   base: HTMLCanvasElement,
   kind: IeiPhotoExportKind,
-  background?: IeiPhotoBackgroundSettings,
-  opts?: { monitorFillFromBase?: boolean },
 ): Promise<Blob> {
   switch (kind) {
     case "base":
@@ -384,17 +400,8 @@ export async function exportFromBaseByKind(
       return exportTesatsuFromBase(base);
     case "yotsugiri":
       return exportYotsugiriFromBase(base);
-    case "monitor169": {
-      // AIモードでは雲固定背景を使わず、基準写真（AI結果）をぼかして余白に敷く。
-      if (opts?.monitorFillFromBase) {
-        return exportMonitor169FromBase(base, background, null, {
-          fillFromBase: true,
-        });
-      }
-      // 通常時は 16:9 の余白に写真背景（横）を敷く（写真系以外は null）。
-      const bgImage = await resolveBackgroundImage(background, "wide");
-      return exportMonitor169FromBase(base, background, bgImage);
-    }
+    case "monitor169":
+      return exportMonitor169FromBase(base);
     default: {
       // 網羅性チェック
       const _exhaustive: never = kind;
@@ -415,12 +422,10 @@ export function filenameForKind(kind: IeiPhotoExportKind): string {
  */
 export async function exportAllZipFromBase(
   base: HTMLCanvasElement,
-  background?: IeiPhotoBackgroundSettings,
-  opts?: { monitorFillFromBase?: boolean },
 ): Promise<Blob> {
   const entries: ZipEntry[] = [];
   for (const kind of IEI_PHOTO_EXPORT_ORDER) {
-    const blob = await exportFromBaseByKind(base, kind, background, opts);
+    const blob = await exportFromBaseByKind(base, kind);
     const data = new Uint8Array(await blob.arrayBuffer());
     entries.push({ name: filenameForKind(kind), data });
   }
