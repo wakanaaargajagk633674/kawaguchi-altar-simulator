@@ -159,26 +159,6 @@ function drawCover(
   ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
 }
 
-/** 中央配置（contain: 全体が収まるように縮小して中央へ。余白が出る）。 */
-function drawContain(
-  ctx: CanvasRenderingContext2D,
-  src: CanvasImageSource,
-  srcWidth: number,
-  srcHeight: number,
-  destWidth: number,
-  destHeight: number,
-): void {
-  if (!srcWidth || !srcHeight) {
-    throw new Error("画像サイズを取得できませんでした。");
-  }
-  const scale = Math.min(destWidth / srcWidth, destHeight / srcHeight);
-  const drawWidth = srcWidth * scale;
-  const drawHeight = srcHeight * scale;
-  const dx = (destWidth - drawWidth) / 2;
-  const dy = (destHeight - drawHeight) / 2;
-  ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
-}
-
 /**
  * 中央 cover に zoom / offset を加味して描画する（手動トリミング）。
  * - zoom 100 は cover と同じ。100 超で拡大。
@@ -339,34 +319,31 @@ export async function exportYotsugiriFromBase(
 }
 
 /**
- * 基準写真を強くぼかして全面に cover 描画する（16:9 のボケ背景用）。
- * 端のぼかしフェードを避けるため少しオーバースキャンして敷く。
+ * 基準写真の指定領域の平均色を rgb() 文字列で返す（1x1 へ縮小して読む）。
+ * 16:9 余白の下地（エッジ延長のフェード保険）に使う。
  */
-function drawBlurredCoverBackground(
-  ctx: CanvasRenderingContext2D,
-  src: CanvasImageSource,
-  srcWidth: number,
-  srcHeight: number,
-  destWidth: number,
-  destHeight: number,
-  blurPx: number,
-): void {
-  const scale = Math.max(destWidth / srcWidth, destHeight / srcHeight) * 1.15;
-  const drawWidth = srcWidth * scale;
-  const drawHeight = srcHeight * scale;
-  const dx = (destWidth - drawWidth) / 2;
-  const dy = (destHeight - drawHeight) / 2;
-  ctx.save();
-  ctx.filter = `blur(${blurPx}px)`;
-  ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
-  ctx.restore();
+function averageColorOfRegion(
+  src: HTMLCanvasElement,
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
+): string {
+  const tmp = createCanvas(1, 1);
+  const tctx = get2dContext(tmp);
+  tctx.drawImage(src, sx, sy, sw, sh, 0, 0, 1, 1);
+  const d = tctx.getImageData(0, 0, 1, 1).data;
+  return `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
 }
 
 /**
  * 16:9 モニター用を書き出す。
  * 1920x1080 の横長キャンバスに、基準写真（縦長）を中央へ contain 配置（全体が切れない）。
- * 左右余白は「無地背景」や「切れた人物」ではなく、基準写真自体を強くぼかしたボケ背景＋
- * 白ベールで自然に埋める。AI で横長生成はしない（中央配置のみ）。
+ *
+ * 左右余白は「無地背景」や「切れた人物のボケ」ではなく、基準写真の左右端の背景を
+ * 横方向へ引き伸ばして（エッジ延長）埋める。四切も同じ基準写真から切り出すため、
+ * 16:9 の余白＝四切の背景の続きになり、両者が自然につながる。
+ * AI 生成（背景が淡い無地/グラデ）では特になじみやすい。AI で横長生成はしない。
  */
 export async function exportMonitor169FromBase(
   base: HTMLCanvasElement,
@@ -374,14 +351,71 @@ export async function exportMonitor169FromBase(
   const { width, height } = IEI_PHOTO_EXPORT_SIZES.monitor169.pixelGuide;
   const canvas = createCanvas(width, height);
   const ctx = get2dContext(canvas);
-  // 背景: 強めのボケで全面を埋める → 白ベールで和らげ、中央の人物を引き立てる。
-  ctx.fillStyle = BASE_BG_COLOR;
+
+  const bw = base.width;
+  const bh = base.height;
+  // 中央の人物（基準写真）を contain 配置する領域。
+  const scale = Math.min(width / bw, height / bh);
+  const pw = bw * scale;
+  const ph = bh * scale;
+  const px = (width - pw) / 2;
+  const py = (height - ph) / 2;
+
+  // 端から取るストリップ幅（基準写真幅の数%）。
+  const stripW = Math.max(2, Math.round(bw * 0.04));
+
+  // 1) 下地: 左右端の平均色で左右半分を塗る（エッジ延長のぼかしフェード保険）。
+  let leftAvg = BASE_BG_COLOR;
+  let rightAvg = BASE_BG_COLOR;
+  try {
+    leftAvg = averageColorOfRegion(base, 0, 0, stripW, bh);
+    rightAvg = averageColorOfRegion(base, bw - stripW, 0, stripW, bh);
+  } catch {
+    // getImageData が使えない環境では白下地のままにする。
+  }
+  ctx.fillStyle = leftAvg;
+  ctx.fillRect(0, 0, Math.ceil(width / 2), height);
+  ctx.fillStyle = rightAvg;
+  ctx.fillRect(Math.floor(width / 2), 0, Math.ceil(width / 2), height);
+
+  // 2) エッジ延長: 基準写真の左右端ストリップを余白へ横引き伸ばし（軽いぼかしでムラ消し）。
+  const seamOverlap = Math.round(width * 0.02);
+  ctx.save();
+  ctx.filter = "blur(18px)";
+  // 左余白
+  ctx.drawImage(base, 0, 0, stripW, bh, 0, py, px + seamOverlap, ph);
+  // 右余白
+  const rightStart = px + pw - seamOverlap;
+  ctx.drawImage(
+    base,
+    bw - stripW,
+    0,
+    stripW,
+    bh,
+    rightStart,
+    py,
+    width - rightStart,
+    ph,
+  );
+  ctx.restore();
+
+  // 3) 中央に人物全体を配置（上下左右が切れない）。
+  ctx.drawImage(base, px, py, pw, ph);
+
+  // 4) ごく弱いビネット（祭壇モニタとして人物を引き立てる）。
+  const vignette = ctx.createRadialGradient(
+    width / 2,
+    height / 2,
+    height * 0.38,
+    width / 2,
+    height / 2,
+    width * 0.72,
+  );
+  vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+  vignette.addColorStop(1, "rgba(0, 0, 0, 0.12)");
+  ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, width, height);
-  drawBlurredCoverBackground(ctx, base, base.width, base.height, width, height, 44);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.34)";
-  ctx.fillRect(0, 0, width, height);
-  // 中央に人物全体を contain（上下左右が切れないように配置）。
-  drawContain(ctx, base, base.width, base.height, width, height);
+
   return canvasToJpegBlob(canvas);
 }
 
