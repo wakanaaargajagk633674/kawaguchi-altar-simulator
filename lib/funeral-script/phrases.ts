@@ -12,6 +12,7 @@
  */
 
 import type {
+  FuneralScriptCeremonyType,
   FuneralScriptFormData,
   FuneralScriptLength,
   FuneralScriptSection,
@@ -376,16 +377,19 @@ export function crematoriumGuidance(ctx: ScriptContext): SectionDraft {
  */
 export function closingDeclaration(
   ctx: ScriptContext,
-  form: FuneralScriptFormData,
+  ceremonyType: FuneralScriptCeremonyType,
 ): string {
-  if (form.ceremonyType === "non_religious_funeral") {
+  if (
+    ceremonyType === "non_religious_funeral" ||
+    ceremonyType === "non_religious_one_day"
+  ) {
     return lines(
       "皆様、今一度、正面のご遺影へとお向き直りくださいませ。",
       `${ctx.deceasedSama}が繋いでくださったご縁、遺してくださった数多の思い出は、いつまでも皆様の心に生き続けてまいります。`,
       `以上をもちまして、${ctx.deceasedSama}のお別れの会を、閉会とさせていただきます。本日は、${closingTail(ctx)}`,
     );
   }
-  if (form.ceremonyType === "buddhist_wake") {
+  if (ceremonyType === "buddhist_wake") {
     return lines(
       "皆様、今一度、祭壇のご遺影へとお向き直りくださいませ。",
       `以上をもちまして、${ctx.deceasedKo}様の通夜の儀は、ひとまず区切りとさせていただきます。`,
@@ -486,7 +490,7 @@ export function closingNarrationMerged(
   form: FuneralScriptFormData,
 ): SectionDraft {
   const provisional = buildProvisionalNarration(ctx, form, "closing");
-  const declaration = closingDeclaration(ctx, form);
+  const declaration = closingDeclaration(ctx, form.ceremonyType);
   const provisionalBlock = provisional ? `${provisional}\n\n` : "";
   return {
     title: "閉式前ナレーション・閉式",

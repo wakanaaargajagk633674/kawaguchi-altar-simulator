@@ -9,9 +9,11 @@
  */
 
 export type FuneralScriptCeremonyType =
-  | "buddhist_wake" // 仏式 通夜
-  | "buddhist_funeral" // 仏式 葬儀・告別式
-  | "non_religious_funeral"; // 無宗教 告別式
+  | "buddhist_wake" // 仏式 通夜のみ
+  | "buddhist_wake_funeral" // 仏式 通夜・告別式（1台本に通夜＋告別式を収録）
+  | "buddhist_funeral" // 仏式 一日葬（告別式のみ・通夜なし）
+  | "non_religious_funeral" // 無宗教 告別式
+  | "non_religious_one_day"; // 無宗教 告別式（一日葬）
 
 export type FuneralScriptTone =
   | "standard" // 標準

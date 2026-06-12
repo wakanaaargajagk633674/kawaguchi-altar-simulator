@@ -41,37 +41,56 @@ export default function FuneralScriptPrintView({
         {name && <p className="mt-1 text-sm text-slate-700">故 {name} 様</p>}
       </header>
 
-      {sections.map((section, index) => (
-        <section
-          key={section.id}
-          className={cn(
-            "fs-section mb-5",
-            section.avoidPageBreak && "avoid-break",
-          )}
-        >
-          <h2
+      {sections.map((section, index) => {
+        // 日付区切り（通夜・告別式の統合台本）
+        if (section.kind === "note") {
+          return (
+            <h2
+              key={section.id}
+              className={cn(
+                "fs-heading avoid-break mt-6 mb-2 border-b-2 border-slate-700 pb-1 font-bold text-slate-950",
+                printHeadingTextClass(printSize),
+              )}
+            >
+              {section.title}
+            </h2>
+          );
+        }
+        const stepNo = sections
+          .slice(0, index + 1)
+          .filter((x) => x.kind !== "note").length;
+        return (
+          <section
+            key={section.id}
             className={cn(
-              "fs-heading mb-1 font-semibold text-slate-950",
-              printHeadingTextClass(printSize),
+              "fs-section mb-5",
+              section.avoidPageBreak && "avoid-break",
             )}
           >
-            {index + 1}. {section.title}
-          </h2>
-          <p
-            className={cn(
-              "whitespace-pre-wrap text-slate-900",
-              printBodyTextClass(printSize),
-            )}
-          >
-            {section.body}
-          </p>
-          {section.note && (
-            <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-500">
-              〔司会者メモ〕{section.note}
+            <h2
+              className={cn(
+                "fs-heading mb-1 font-semibold text-slate-950",
+                printHeadingTextClass(printSize),
+              )}
+            >
+              {stepNo}. {section.title}
+            </h2>
+            <p
+              className={cn(
+                "whitespace-pre-wrap text-slate-900",
+                printBodyTextClass(printSize),
+              )}
+            >
+              {section.body}
             </p>
-          )}
-        </section>
-      ))}
+            {section.note && (
+              <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-500">
+                〔司会者メモ〕{section.note}
+              </p>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

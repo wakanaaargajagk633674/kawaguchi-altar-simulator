@@ -88,8 +88,11 @@ const nonReligiousFuneral: FlowStep[] = [
 
 const FLOWS: Record<FuneralScriptCeremonyType, FlowStep[]> = {
   buddhist_wake: buddhistWake,
-  buddhist_funeral: buddhistFuneral,
+  // 通夜・告別式は generator が「通夜フロー＋告別式フロー」を連結して生成（特例）
+  buddhist_wake_funeral: [],
+  buddhist_funeral: buddhistFuneral, // 一日葬（告別式のみ）も同フロー
   non_religious_funeral: nonReligiousFuneral,
+  non_religious_one_day: nonReligiousFuneral, // 無宗教 一日葬も同フロー
 };
 
 export function getFlow(ceremonyType: FuneralScriptCeremonyType): FlowStep[] {
@@ -101,7 +104,16 @@ export const CEREMONY_TYPE_LABELS: Record<
   FuneralScriptCeremonyType,
   string
 > = {
-  buddhist_wake: "仏式 通夜",
-  buddhist_funeral: "仏式 葬儀・告別式",
+  buddhist_wake: "仏式 通夜のみ",
+  buddhist_wake_funeral: "仏式 通夜・告別式",
+  buddhist_funeral: "仏式 一日葬（告別式のみ）",
   non_religious_funeral: "無宗教 告別式",
+  non_religious_one_day: "無宗教 告別式（一日葬）",
 };
+
+/** 通夜・告別式（統合）かどうか */
+export function isCombinedWakeFuneral(
+  ceremonyType: FuneralScriptCeremonyType,
+): boolean {
+  return ceremonyType === "buddhist_wake_funeral";
+}

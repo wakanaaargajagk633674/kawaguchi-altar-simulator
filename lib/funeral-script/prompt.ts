@@ -15,7 +15,30 @@ import {
 } from "./style-guide";
 import { NG_WATCH_WORDS } from "./ng-words";
 import { buildScriptContext, closingDeclaration } from "./phrases";
-import type { FuneralScriptFormData, FuneralScriptSection } from "./types";
+import type {
+  FuneralScriptCeremonyType,
+  FuneralScriptFormData,
+  FuneralScriptSection,
+} from "./types";
+
+/** セクションIDの接頭辞から式種別を判定（通夜・告別式の統合台本で日ごとに使い分けるため） */
+function ceremonyTypeFromSectionId(
+  id: string,
+  fallback: FuneralScriptCeremonyType,
+): FuneralScriptCeremonyType {
+  const known: FuneralScriptCeremonyType[] = [
+    "buddhist_wake_funeral",
+    "buddhist_wake",
+    "buddhist_funeral",
+    "non_religious_funeral",
+    "non_religious_one_day",
+  ];
+  // より長い接頭辞を優先（buddhist_wake_funeral を buddhist_wake より先に判定）
+  for (const t of known) {
+    if (id.startsWith(`${t}-`)) return t;
+  }
+  return fallback;
+}
 
 /** セクションの役割ガイド（タイトルから推定） */
 function sectionRoleGuide(section: FuneralScriptSection): {
@@ -78,7 +101,9 @@ export function buildFuneralNarrationPrompt(params: {
 }): string {
   const { form, targetSections } = params;
   const ceremonyLabel = CEREMONY_TYPE_LABELS[form.ceremonyType];
-  const isNonReligious = form.ceremonyType === "non_religious_funeral";
+  const isNonReligious =
+    form.ceremonyType === "non_religious_funeral" ||
+    form.ceremonyType === "non_religious_one_day";
   const nameForGuide = form.deceasedName.trim()
     ? `${form.deceasedName.trim()}様`
     : "故人様";
@@ -87,8 +112,6 @@ export function buildFuneralNarrationPrompt(params: {
   const hasInfo = infoLines.length > 0;
 
   const ctx = buildScriptContext(form);
-  // 統合「閉式前ナレーション・閉式」セクション用に、締めとして使う固定の閉式宣言文（1行化）
-  const closingLine = closingDeclaration(ctx, form).replace(/\n/g, " ");
 
   const targetBlocks = targetSections.map((s) => {
     const role = sectionRoleGuide(s);
@@ -98,6 +121,10 @@ export function buildFuneralNarrationPrompt(params: {
       `  構成の目安: ${role.structure.join(" / ")}`,
     ];
     if (s.title.includes("閉式")) {
+      // 統合「閉式前ナレーション・閉式」の締め。通夜・告別式（統合）では
+      // セクションIDの接頭辞から日ごとの式種別を判定し、通夜は「区切り」表現を保つ。
+      const sub = ceremonyTypeFromSectionId(s.id, form.ceremonyType);
+      const closingLine = closingDeclaration(ctx, sub).replace(/\n/g, " ");
       lines.push(`  閉式の言葉（この趣旨で必ず締める。言い回しは整えてよい）: ${closingLine}`);
     }
     return lines.join("\n");

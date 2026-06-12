@@ -33,9 +33,32 @@ export default function FuneralScriptPreview({
     );
   }
 
+  // 進行番号は区切り（note）を除いて採番する（描画中の変数再代入を避けるため純粋に算出）
+  const stepNumbers = sections.map((s, i) =>
+    s.kind === "note"
+      ? null
+      : sections.slice(0, i + 1).filter((x) => x.kind !== "note").length,
+  );
+
   return (
     <div className="grid gap-3">
       {sections.map((section, index) => {
+        // 日付区切り（通夜・告別式の統合台本）は見出しバーで表示
+        if (section.kind === "note") {
+          return (
+            <div
+              key={section.id}
+              className="mt-2 rounded-md bg-slate-800 px-4 py-2 text-sm font-semibold text-white"
+            >
+              {section.title}
+              {section.body && (
+                <span className="ml-2 text-xs font-normal text-slate-300">
+                  {section.body}
+                </span>
+              )}
+            </div>
+          );
+        }
         const isAiSlot =
           section.kind === "ai_placeholder" || section.aiGenerated;
         const isGenerated = Boolean(section.aiGenerated);
@@ -53,7 +76,7 @@ export default function FuneralScriptPreview({
           >
             <div className="mb-2 flex items-center gap-2">
               <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-800 px-2 text-xs font-semibold text-white">
-                {index + 1}
+                {stepNumbers[index]}
               </span>
               <h3 className="text-base font-semibold text-slate-950">
                 {section.title}

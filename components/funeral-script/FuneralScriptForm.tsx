@@ -115,7 +115,7 @@ export default function FuneralScriptForm({
   onCeremonyTypeChange,
   onGenerate,
 }: FuneralScriptFormProps) {
-  const isBuddhist = form.ceremonyType !== "non_religious_funeral";
+  const isBuddhist = form.ceremonyType.startsWith("buddhist");
 
   return (
     <div className="grid gap-4">

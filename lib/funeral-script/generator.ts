@@ -7,7 +7,7 @@
  */
 
 import type { FlowStep, FlowStepKey } from "./flows";
-import { getFlow } from "./flows";
+import { getFlow, isCombinedWakeFuneral } from "./flows";
 import {
   aiNarration,
   buildScriptContext,
@@ -42,17 +42,19 @@ function buildStep(
   form: FuneralScriptFormData,
 ): SectionDraft | null {
   const isWake = form.ceremonyType === "buddhist_wake";
+  const isNonReligious =
+    form.ceremonyType === "non_religious_funeral" ||
+    form.ceremonyType === "non_religious_one_day";
 
   switch (key) {
     case "pre_announcement":
-      if (form.ceremonyType === "non_religious_funeral")
-        return preAnnouncementNonReligious(ctx);
+      if (isNonReligious) return preAnnouncementNonReligious(ctx);
       return isWake
         ? preAnnouncementBuddhistWake(ctx)
         : preAnnouncementBuddhistFuneral(form);
 
     case "opening":
-      return form.ceremonyType === "non_religious_funeral"
+      return isNonReligious
         ? openingNonReligious(ctx)
         : openingBuddhist(ctx, form);
 
@@ -118,8 +120,8 @@ function buildStep(
   }
 }
 
-/** 進行フローを台本セクション配列へ変換する。 */
-export function generateFuneralScript(
+/** 単一フローを辿ってセクション配列を生成する。 */
+function generateSingleFlow(
   form: FuneralScriptFormData,
 ): FuneralScriptSection[] {
   const ctx = buildScriptContext(form);
@@ -144,4 +146,41 @@ export function generateFuneralScript(
   }
 
   return sections;
+}
+
+/** 日付の見出し（区切り）セクション。 */
+function dayDivider(id: string, title: string, body: string): FuneralScriptSection {
+  return { id, title, kind: "note", body };
+}
+
+/**
+ * 進行フローを台本セクション配列へ変換する。
+ * 「通夜・告別式」は通夜フローと告別式フローを区切り見出し付きで連結する。
+ */
+export function generateFuneralScript(
+  form: FuneralScriptFormData,
+): FuneralScriptSection[] {
+  if (isCombinedWakeFuneral(form.ceremonyType)) {
+    const wake = generateSingleFlow({ ...form, ceremonyType: "buddhist_wake" });
+    const funeral = generateSingleFlow({
+      ...form,
+      ceremonyType: "buddhist_funeral",
+    });
+    return [
+      dayDivider(
+        "combined-divider-wake",
+        "【1日目】通夜",
+        "ここから通夜の進行です。",
+      ),
+      ...wake,
+      dayDivider(
+        "combined-divider-funeral",
+        "【2日目】葬儀・告別式",
+        "ここから葬儀・告別式の進行です。",
+      ),
+      ...funeral,
+    ];
+  }
+
+  return generateSingleFlow(form);
 }

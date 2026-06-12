@@ -114,7 +114,10 @@ export const lengthStyleInstructions: Record<FuneralScriptLength, string> = {
 export function ceremonyRulesFor(
   ceremonyType: FuneralScriptCeremonyType,
 ): string[] {
-  if (ceremonyType === "non_religious_funeral") {
+  if (
+    ceremonyType === "non_religious_funeral" ||
+    ceremonyType === "non_religious_one_day"
+  ) {
     return funeralNarrationStyleGuide.nonReligiousRules.slice();
   }
   return funeralNarrationStyleGuide.buddhistRules.slice();

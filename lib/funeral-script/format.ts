@@ -28,9 +28,16 @@ export function sectionsToPlainText(
     blocks.push(name ? `${heading}\n故 ${name} 様` : heading);
   }
 
-  sections.forEach((section, i) => {
+  let stepNo = 0;
+  sections.forEach((section) => {
+    // 日付区切り（通夜・告別式の統合台本）は番号を振らず見出しとして出す
+    if (section.kind === "note") {
+      blocks.push(`【${section.title}】`);
+      return;
+    }
+    stepNo += 1;
     const parts: string[] = [];
-    parts.push(`■ ${i + 1}. ${section.title}`);
+    parts.push(`■ ${stepNo}. ${section.title}`);
     parts.push(section.body.trim());
     if (section.note?.trim()) {
       parts.push(`〔司会者メモ〕${section.note.trim()}`);
@@ -95,8 +102,14 @@ export { CEREMONY_TYPE_LABELS };
 export function defaultFormData(
   ceremonyType: FuneralScriptCeremonyType = "buddhist_funeral",
 ): FuneralScriptFormData {
-  const isNonReligious = ceremonyType === "non_religious_funeral";
-  const isFuneral = ceremonyType === "buddhist_funeral";
+  const isNonReligious =
+    ceremonyType === "non_religious_funeral" ||
+    ceremonyType === "non_religious_one_day";
+  // 告別式を含む式（一日葬・通夜告別式）。お別れ準備・出棺・火葬場の既定オン
+  const hasFarewellDay =
+    ceremonyType === "buddhist_funeral" ||
+    ceremonyType === "buddhist_wake_funeral";
+  const isFuneral = hasFarewellDay;
   return {
     deceasedName: "",
     birthDate: "",
