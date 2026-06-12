@@ -108,3 +108,33 @@ export type FuneralScriptFormData = {
   length: FuneralScriptLength;
   printSize: FuneralScriptPrintSize;
 };
+
+// ──────────────────────────────────────────────────────────
+// AIナレーション生成 API（/api/funeral-script/generate-narration）
+// ──────────────────────────────────────────────────────────
+
+/** リクエスト Body */
+export type GenerateNarrationRequest = {
+  form: FuneralScriptFormData;
+  sections: FuneralScriptSection[];
+  /** 生成対象（ai_placeholder セクションの id のみ有効） */
+  targetSectionIds: string[];
+};
+
+/** 成功レスポンス（既存セクションIDに対応する生成結果のみ返す） */
+export type GenerateNarrationResponse = {
+  sections: {
+    id: string;
+    title: string;
+    body: string;
+    note?: string;
+    aiGenerated: true;
+  }[];
+  warnings: string[];
+};
+
+/** エラーレスポンス */
+export type GenerateNarrationError = {
+  error: string;
+  detail?: string;
+};

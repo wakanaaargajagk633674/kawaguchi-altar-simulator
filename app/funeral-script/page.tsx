@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import FuneralScriptForm from "@/components/funeral-script/FuneralScriptForm";
+import FuneralScriptAiControls from "@/components/funeral-script/FuneralScriptAiControls";
 import FuneralScriptPreview from "@/components/funeral-script/FuneralScriptPreview";
 import FuneralScriptPrintView from "@/components/funeral-script/FuneralScriptPrintView";
 import FuneralScriptToolbar from "@/components/funeral-script/FuneralScriptToolbar";
@@ -16,7 +17,11 @@ import type {
   FuneralScriptCeremonyType,
   FuneralScriptFormData,
   FuneralScriptSection,
+  GenerateNarrationResponse,
 } from "@/lib/funeral-script/types";
+
+const AI_GENERIC_ERROR =
+  "AI生成に失敗しました。固定テンプレートの台本はそのまま利用できます。";
 
 // 印刷用CSS（共有 globals.css は変更せず、本ページ内に閉じる）
 const PRINT_CSS = `
@@ -39,6 +44,15 @@ export default function FuneralScriptPage() {
   );
   const [sections, setSections] = useState<FuneralScriptSection[]>([]);
   const [copied, setCopied] = useState(false);
+
+  // AIナレーション生成の状態
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiWarnings, setAiWarnings] = useState<string[]>([]);
+  // AI生成前のセクション退避（「AI生成前に戻す」用）
+  const [preAiSections, setPreAiSections] = useState<
+    FuneralScriptSection[] | null
+  >(null);
 
   const handleChange = useCallback(
     (patch: Partial<FuneralScriptFormData>) => {
@@ -72,7 +86,85 @@ export default function FuneralScriptPage() {
   const handleGenerate = useCallback(() => {
     setSections(generateFuneralScript(form));
     setCopied(false);
+    // テンプレート再生成時はAI状態をリセット
+    setPreAiSections(null);
+    setAiError(null);
+    setAiWarnings([]);
   }, [form]);
+
+  // AI生成対象（ai_placeholder）の id 一覧
+  const aiTargetIds = useMemo(
+    () =>
+      sections.filter((s) => s.kind === "ai_placeholder").map((s) => s.id),
+    [sections],
+  );
+  const hasAiGenerated = useMemo(
+    () => sections.some((s) => s.aiGenerated),
+    [sections],
+  );
+
+  const handleGenerateAi = useCallback(async () => {
+    if (aiTargetIds.length === 0) return;
+    setAiLoading(true);
+    setAiError(null);
+    // AI生成前のスナップショットを一度だけ退避（プレースホルダー基準を保持）
+    setPreAiSections((prev) => prev ?? sections);
+
+    try {
+      const res = await fetch("/api/funeral-script/generate-narration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          form,
+          sections,
+          targetSectionIds: aiTargetIds,
+        }),
+      });
+      const data: unknown = await res.json();
+
+      if (!res.ok) {
+        const message =
+          (data as { error?: string })?.error || AI_GENERIC_ERROR;
+        setAiError(message);
+        setAiWarnings([]);
+        return;
+      }
+
+      const ok = data as GenerateNarrationResponse;
+      const generatedById = new Map(ok.sections.map((s) => [s.id, s]));
+      // 返ってきた id に対応する ai_placeholder の本文だけ置換（固定部分は触れない）
+      setSections((prev) =>
+        prev.map((section) => {
+          const g = generatedById.get(section.id);
+          if (g && section.kind === "ai_placeholder") {
+            return {
+              ...section,
+              body: g.body,
+              note: undefined,
+              aiGenerated: true,
+            };
+          }
+          return section;
+        }),
+      );
+      setAiWarnings(ok.warnings ?? []);
+      setCopied(false);
+    } catch {
+      // 入力本文はログ出力しない
+      setAiError(AI_GENERIC_ERROR);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiTargetIds, sections, form]);
+
+  const handleRevertAi = useCallback(() => {
+    if (!preAiSections) return;
+    setSections(preAiSections);
+    setPreAiSections(null);
+    setAiWarnings([]);
+    setAiError(null);
+    setCopied(false);
+  }, [preAiSections]);
 
   const handleEditBody = useCallback((id: string, body: string) => {
     setSections((prev) =>
@@ -136,7 +228,7 @@ export default function FuneralScriptPage() {
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             式種別と各項目を入力すると、固定テンプレートから司会台本を生成します。
-            ナレーション部分は次フェーズでAI生成予定のプレースホルダーとして表示されます。
+            進行案内は固定のまま、ナレーション部分だけを任意でAI生成できます（生成結果は編集可能）。
           </p>
         </header>
 
@@ -153,6 +245,18 @@ export default function FuneralScriptPage() {
 
           {/* プレビュー */}
           <div className="grid content-start gap-3">
+            {hasScript && (
+              <FuneralScriptAiControls
+                targetCount={aiTargetIds.length}
+                hasGenerated={hasAiGenerated}
+                loading={aiLoading}
+                error={aiError}
+                warnings={aiWarnings}
+                onGenerate={handleGenerateAi}
+                onRevert={handleRevertAi}
+                canRevert={preAiSections !== null}
+              />
+            )}
             <FuneralScriptToolbar
               printSize={form.printSize}
               onPrintSizeChange={(printSize) => handleChange({ printSize })}

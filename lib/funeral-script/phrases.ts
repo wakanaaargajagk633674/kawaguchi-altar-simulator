@@ -480,8 +480,8 @@ export function aiNarration(
     title: variant.title,
     kind: "ai_placeholder",
     body: provisional ? `${AI_PLACEHOLDER_NOTICE}\n\n${provisional}` : AI_PLACEHOLDER_NOTICE,
-    aiGenerated: true,
+    // aiGenerated はAI生成“後”に true を付ける（プレースホルダー段階では未設定）。
     editable: true,
-    note: "次フェーズでAI生成に差し替え予定。現状は固定の案内文（＋入力からの仮文）。",
+    note: "AIナレーション生成、または手動編集で本文を差し替えてください。",
   };
 }

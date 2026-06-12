@@ -36,15 +36,19 @@ export default function FuneralScriptPreview({
   return (
     <div className="grid gap-3">
       {sections.map((section, index) => {
-        const isAi = section.kind === "ai_placeholder" || section.aiGenerated;
+        const isAiSlot =
+          section.kind === "ai_placeholder" || section.aiGenerated;
+        const isGenerated = Boolean(section.aiGenerated);
         return (
           <article
             key={section.id}
             className={cn(
               "rounded-lg border p-4 shadow-sm sm:p-5",
-              isAi
-                ? "border-amber-300 bg-amber-50/60"
-                : "border-stone-200 bg-white",
+              isGenerated
+                ? "border-emerald-300 bg-emerald-50/50"
+                : isAiSlot
+                  ? "border-amber-300 bg-amber-50/60"
+                  : "border-stone-200 bg-white",
             )}
           >
             <div className="mb-2 flex items-center gap-2">
@@ -54,10 +58,16 @@ export default function FuneralScriptPreview({
               <h3 className="text-base font-semibold text-slate-950">
                 {section.title}
               </h3>
-              {isAi && (
-                <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                  AI生成予定
+              {isGenerated ? (
+                <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                  AI生成済み
                 </span>
+              ) : (
+                isAiSlot && (
+                  <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                    AI生成予定
+                  </span>
+                )
               )}
             </div>
 
