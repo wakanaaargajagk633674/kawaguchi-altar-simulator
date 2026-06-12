@@ -14,6 +14,7 @@ import {
   toneStyleInstructions,
 } from "./style-guide";
 import { NG_WATCH_WORDS } from "./ng-words";
+import { buildScriptContext, closingDeclaration } from "./phrases";
 import type { FuneralScriptFormData, FuneralScriptSection } from "./types";
 
 /** セクションの役割ガイド（タイトルから推定） */
@@ -26,7 +27,13 @@ function sectionRoleGuide(section: FuneralScriptSection): {
     return { kindLabel: "メインナレーション", structure: guide.mainNarrationStructure.slice() };
   }
   if (t.includes("閉式")) {
-    return { kindLabel: "閉式前ナレーション", structure: guide.closingNarrationStructure.slice() };
+    return {
+      kindLabel: "閉式前ナレーション・閉式（閉式の辞を含む）",
+      structure: [
+        ...guide.closingNarrationStructure,
+        "結びのナレーションのあと、最後は必ず閉式の宣言で締める（下記の閉式の言葉を下敷きにする）",
+      ],
+    };
   }
   if (t.includes("開式")) {
     return { kindLabel: "開式ナレーション", structure: guide.openingNarrationStructure.slice() };
@@ -79,13 +86,21 @@ export function buildFuneralNarrationPrompt(params: {
   const infoLines = deceasedInfoLines(form);
   const hasInfo = infoLines.length > 0;
 
+  const ctx = buildScriptContext(form);
+  // 統合「閉式前ナレーション・閉式」セクション用に、締めとして使う固定の閉式宣言文（1行化）
+  const closingLine = closingDeclaration(ctx, form).replace(/\n/g, " ");
+
   const targetBlocks = targetSections.map((s) => {
     const role = sectionRoleGuide(s);
-    return [
+    const lines = [
       `- id: "${s.id}"`,
       `  種類: ${role.kindLabel}`,
       `  構成の目安: ${role.structure.join(" / ")}`,
-    ].join("\n");
+    ];
+    if (s.title.includes("閉式")) {
+      lines.push(`  閉式の言葉（この趣旨で必ず締める。言い回しは整えてよい）: ${closingLine}`);
+    }
+    return lines.join("\n");
   });
 
   const rules = [

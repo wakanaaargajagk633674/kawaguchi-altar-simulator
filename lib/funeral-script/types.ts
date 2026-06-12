@@ -99,9 +99,10 @@ export type FuneralScriptFormData = {
   hasFarewellPreparation: boolean; // お別れ準備案内
   hasDeparture: boolean; // 出棺案内
   hasCrematoriumGuidance: boolean; // 火葬場同行案内
-  hasFlowerOffering: boolean; // 献花
-  hasCandleOffering: boolean; // 献灯
-  hasSilentPrayer: boolean; // 黙祷
+  hasFlowerOffering: boolean; // 献花（無宗教）
+  hasCandleOffering: boolean; // 献灯（無宗教）
+  hasIncense: boolean; // 焼香（無宗教の任意。仏式は常に実施）
+  hasSilentPrayer: boolean; // 黙祷（無宗教）
 
   // 台本設定
   tone: FuneralScriptTone;

@@ -353,12 +353,17 @@ export default function FuneralScriptForm({
                 checked={form.hasCandleOffering}
                 onChange={(v) => onChange({ hasCandleOffering: v })}
               />
+              <ToggleField
+                label="焼香"
+                checked={form.hasIncense}
+                onChange={(v) => onChange({ hasIncense: v })}
+              />
             </>
           )}
         </div>
         {!isBuddhist && (
           <p className="mt-3 text-xs text-slate-500">
-            お供えは「献花 → 献灯 → 焼香」の優先で1つ案内します。いずれも未選択の場合は焼香案内になります。
+            お供えは選択したものを「献花 → 献灯 → 焼香」の順にご案内します（既定は 献灯 → 焼香）。
           </p>
         )}
       </section>

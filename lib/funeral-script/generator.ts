@@ -13,9 +13,7 @@ import {
   buildScriptContext,
   candleOffering,
   chiefMournerGreeting,
-  closingBuddhistFuneral,
-  closingBuddhistWake,
-  closingNonReligious,
+  closingNarrationMerged,
   condolenceAddress,
   crematoriumGuidance,
   departure,
@@ -36,16 +34,6 @@ import {
   type SectionDraft,
 } from "./phrases";
 import type { FuneralScriptFormData, FuneralScriptSection } from "./types";
-
-/** 無宗教式のお供え（献花 > 献灯 > 焼香 の優先で1つ選ぶ） */
-function nonReligiousOffering(
-  ctx: ScriptContext,
-  form: FuneralScriptFormData,
-): SectionDraft {
-  if (form.hasFlowerOffering) return flowerOffering(ctx);
-  if (form.hasCandleOffering) return candleOffering(ctx);
-  return incense(ctx); // いずれも未指定なら焼香でフォールバック
-}
 
 /** フローのステップ1つを SectionDraft（または null=スキップ）に変換 */
 function buildStep(
@@ -86,17 +74,20 @@ function buildStep(
         phase: "main",
       });
 
-    case "narration_closing":
-      return aiNarration(ctx, form, {
-        title: "閉式前ナレーション",
-        phase: "closing",
-      });
+    case "closing_merged":
+      return closingNarrationMerged(ctx, form);
 
     case "incense":
       return incense(ctx);
 
-    case "offering":
-      return nonReligiousOffering(ctx, form);
+    case "offering_flower":
+      return flowerOffering(ctx);
+
+    case "offering_candle":
+      return candleOffering(ctx);
+
+    case "offering_incense":
+      return incense(ctx);
 
     case "silent_prayer":
       return silentPrayer(ctx);
@@ -115,11 +106,6 @@ function buildStep(
 
     case "farewell_preparation":
       return farewellPreparation(ctx);
-
-    case "closing":
-      if (form.ceremonyType === "non_religious_funeral")
-        return closingNonReligious(ctx);
-      return isWake ? closingBuddhistWake(ctx) : closingBuddhistFuneral(ctx);
 
     case "departure":
       return departure(ctx);

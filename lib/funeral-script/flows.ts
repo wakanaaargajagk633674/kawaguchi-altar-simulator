@@ -19,16 +19,17 @@ export type FlowStepKey =
   | "officiant_exit"
   | "narration_opening" // 開式ナレーション（AI）
   | "narration_main" // メインナレーション（AI・無宗教）
-  | "narration_closing" // 閉式前ナレーション（AI）
-  | "incense"
-  | "offering" // 献花/献灯/焼香のいずれか（無宗教）
+  | "closing_merged" // 閉式前ナレーション＋閉式（統合・AI）
+  | "incense" // 焼香（仏式・必須）
+  | "offering_flower" // 献花（無宗教）
+  | "offering_candle" // 献灯（無宗教）
+  | "offering_incense" // 焼香（無宗教・任意）
   | "silent_prayer"
   | "condolence_address"
   | "telegram"
   | "chief_mourner_greeting"
   | "memorial_service"
   | "farewell_preparation"
-  | "closing"
   | "departure"
   | "crematorium_guidance";
 
@@ -46,9 +47,8 @@ const buddhistWake: FlowStep[] = [
   { key: "incense" },
   { key: "telegram", when: (f) => f.hasTelegram },
   { key: "officiant_exit" },
-  { key: "narration_closing" },
   { key: "chief_mourner_greeting", when: (f) => f.hasChiefMournerGreeting },
-  { key: "closing" },
+  { key: "closing_merged" }, // 閉式前ナレーション＋閉式（統合）
 ];
 
 const buddhistFuneral: FlowStep[] = [
@@ -61,10 +61,9 @@ const buddhistFuneral: FlowStep[] = [
   { key: "incense" },
   { key: "memorial_service", when: (f) => f.hasMemorialService },
   { key: "officiant_exit" },
-  { key: "narration_closing" },
   { key: "chief_mourner_greeting", when: (f) => f.hasChiefMournerGreeting },
+  { key: "closing_merged" }, // 閉式前ナレーション＋閉式（統合）
   { key: "farewell_preparation", when: (f) => f.hasFarewellPreparation },
-  { key: "closing" },
   { key: "departure", when: (f) => f.hasDeparture },
   { key: "crematorium_guidance", when: (f) => f.hasCrematoriumGuidance },
 ];
@@ -74,13 +73,15 @@ const nonReligiousFuneral: FlowStep[] = [
   { key: "silent_prayer", when: (f) => f.hasSilentPrayer },
   { key: "opening" },
   { key: "narration_main" },
-  { key: "offering" }, // 献花/献灯/焼香のいずれか（generator が選択）
+  // お供えは「献花 → 献灯 → 焼香」の順で、有効なものを順番に案内する
+  { key: "offering_flower", when: (f) => f.hasFlowerOffering },
+  { key: "offering_candle", when: (f) => f.hasCandleOffering },
+  { key: "offering_incense", when: (f) => f.hasIncense },
   { key: "condolence_address", when: (f) => f.hasCondolenceAddress },
   { key: "telegram", when: (f) => f.hasTelegram },
-  { key: "narration_closing" },
   { key: "chief_mourner_greeting", when: (f) => f.hasChiefMournerGreeting },
+  { key: "closing_merged" }, // 閉式前ナレーション＋閉式（統合）
   { key: "farewell_preparation", when: (f) => f.hasFarewellPreparation },
-  { key: "closing" },
   { key: "departure", when: (f) => f.hasDeparture },
   { key: "crematorium_guidance", when: (f) => f.hasCrematoriumGuidance },
 ];

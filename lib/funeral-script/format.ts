@@ -130,8 +130,10 @@ export function defaultFormData(
     hasFarewellPreparation: isFuneral || isNonReligious,
     hasDeparture: isFuneral || isNonReligious,
     hasCrematoriumGuidance: isFuneral,
-    hasFlowerOffering: isNonReligious,
-    hasCandleOffering: false,
+    // 無宗教の既定お供えは「献灯 → 焼香」（献花は任意でオフ）
+    hasFlowerOffering: false,
+    hasCandleOffering: isNonReligious,
+    hasIncense: isNonReligious,
     hasSilentPrayer: isNonReligious,
 
     tone: "standard",

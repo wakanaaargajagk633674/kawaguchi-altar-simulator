@@ -366,59 +366,49 @@ export function crematoriumGuidance(ctx: ScriptContext): SectionDraft {
 }
 
 // ──────────────────────────────────────────────────────────
-// 閉式
+// 閉式（宣言文）
 // ──────────────────────────────────────────────────────────
 
-/** 仏式 通夜の閉式（「終了」ではなく「区切り」） */
-export function closingBuddhistWake(ctx: ScriptContext): SectionDraft {
-  return {
-    title: "閉式",
-    kind: "closing",
-    body: lines(
-      `皆様、今一度、祭壇のご遺影へとお向き直りくださいませ。`,
+/**
+ * 閉式の宣言文（式種別ごと）。
+ * 「閉式前ナレーション・閉式」統合セクションの末尾に置く固定文の下敷きとして使う。
+ * 通夜は「終了」ではなく「区切り」と表現する。
+ */
+export function closingDeclaration(
+  ctx: ScriptContext,
+  form: FuneralScriptFormData,
+): string {
+  if (form.ceremonyType === "non_religious_funeral") {
+    return lines(
+      "皆様、今一度、正面のご遺影へとお向き直りくださいませ。",
+      `${ctx.deceasedSama}が繋いでくださったご縁、遺してくださった数多の思い出は、いつまでも皆様の心に生き続けてまいります。`,
+      `以上をもちまして、${ctx.deceasedSama}のお別れの会を、閉会とさせていただきます。本日は、${closingTail(ctx)}`,
+    );
+  }
+  if (form.ceremonyType === "buddhist_wake") {
+    return lines(
+      "皆様、今一度、祭壇のご遺影へとお向き直りくださいませ。",
       `以上をもちまして、${ctx.deceasedKo}様の通夜の儀は、ひとまず区切りとさせていただきます。`,
-      "これからのお時間は、それぞれに在りし日のお姿を偲びながら、心静かにお過ごしくださいませ。",
       ctx.startTime
         ? `なお、明日のご葬儀は、${ctx.startTime}より開式の予定でございます。`
         : "なお、明日のご葬儀の開式時刻は、改めてご案内申し上げます。",
       `本日は、長時間にわたり、${closingTail(ctx)}`,
-    ),
-    note: "通夜は本来『閉式』としない考え方もあるため『区切り』と表現する。閉式の合図は事前に確認。",
-  };
-}
-
-/** 仏式 葬儀・告別式の閉式 */
-export function closingBuddhistFuneral(ctx: ScriptContext): SectionDraft {
-  return {
-    title: "閉式",
-    kind: "closing",
-    body: lines(
-      `以上をもちまして、${ctx.deceasedKo}様のご葬儀・告別式を、閉式とさせていただきます。`,
-      `本日は、${closingTail(ctx)}`,
-    ),
-    avoidPageBreak: true,
-  };
-}
-
-/** 無宗教 告別式の閉式の辞 */
-export function closingNonReligious(ctx: ScriptContext): SectionDraft {
-  return {
-    title: "閉式の辞",
-    kind: "closing",
-    body: lines(
-      "皆様、今一度、正面のご遺影へとお向き直りくださいませ。",
-      `${ctx.deceasedSama}が繋いでくださったご縁、遺してくださった数多の思い出は、いつまでも皆様の心に生き続けてまいります。`,
-      `以上をもちまして、${ctx.deceasedSama}のお別れの会を、閉会とさせていただきます。本日は、${closingTail(ctx)}`,
-    ),
-  };
+    );
+  }
+  // 仏式 葬儀・告別式
+  return lines(
+    "皆様、今一度、祭壇のご遺影へとお向き直りくださいませ。",
+    `以上をもちまして、${ctx.deceasedKo}様のご葬儀・告別式を、閉式とさせていただきます。`,
+    `本日は、${closingTail(ctx)}`,
+  );
 }
 
 // ──────────────────────────────────────────────────────────
-// AI生成予定箇所（ナレーション）のプレースホルダー
+// AI生成対象（ナレーション）のプレースホルダー
 // ──────────────────────────────────────────────────────────
 
 export const AI_PLACEHOLDER_NOTICE =
-  "※ ここは次フェーズでAI生成予定です。\n故人様の略歴・お人柄・ご家族との思い出・遺影写真の説明などをもとに、司会用ナレーションを作成します。";
+  "※ この部分はAIナレーション生成の対象です。上の「AIナレーションを生成」で作成できます（手動編集も可）。\n故人様の略歴・お人柄・ご家族との思い出・遺影写真などをもとに、司会用ナレーションを作成します。";
 
 /** 入力済みの情報から簡単な仮文を組み立てる（無ければ null） */
 function buildProvisionalNarration(
@@ -483,5 +473,26 @@ export function aiNarration(
     // aiGenerated はAI生成“後”に true を付ける（プレースホルダー段階では未設定）。
     editable: true,
     note: "AIナレーション生成、または手動編集で本文を差し替えてください。",
+  };
+}
+
+/**
+ * 「閉式前ナレーション・閉式」統合セクション（AI生成対象）。
+ * 故人を偲ぶ短い結び（AI生成・仮文）のあとに、固定の閉式宣言文を下敷きとして添える。
+ * 進行（お別れ準備・出棺など）はこのセクションには含めない。
+ */
+export function closingNarrationMerged(
+  ctx: ScriptContext,
+  form: FuneralScriptFormData,
+): SectionDraft {
+  const provisional = buildProvisionalNarration(ctx, form, "closing");
+  const declaration = closingDeclaration(ctx, form);
+  const provisionalBlock = provisional ? `${provisional}\n\n` : "";
+  return {
+    title: "閉式前ナレーション・閉式",
+    kind: "ai_placeholder",
+    body: `${AI_PLACEHOLDER_NOTICE}\n\n${provisionalBlock}${declaration}`,
+    editable: true,
+    note: "閉式前ナレーションと閉式の辞を兼ねるセクション。結びの言葉のあと、閉式の宣言で締めます（固定文を下敷きにAI生成・手動編集が可能）。",
   };
 }
