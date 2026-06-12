@@ -43,6 +43,11 @@ __pycache__/
 # vercel
 .vercel
 
+# 葬儀司会台本: 一時解析用スキャン画像（個人情報を含む。解析後に削除予定・gitに含めない）
+/public/images/shikai/
+# dev検証ログ
+/dev-*.log
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
