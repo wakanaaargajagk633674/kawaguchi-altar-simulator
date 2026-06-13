@@ -7,7 +7,10 @@
  */
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const OPENAI_FETCH_TIMEOUT_MS = 55_000;
+// 推論モデル（gpt-5 系）は本文生成に時間がかかるため余裕を持たせる。
+const OPENAI_FETCH_TIMEOUT_MS = 110_000;
+// 推論トークン＋本文（最丁寧×複数セクション）で枠を使い切らないよう十分に確保。
+const MAX_OUTPUT_TOKENS = 8000;
 
 const SYSTEM_INSTRUCTIONS =
   "あなたは日本の葬儀司会者向けの台本ナレーションを作成する専門家です。指示された文体・構成ルールに従い、出力は指定のJSONオブジェクトのみとします。";
@@ -93,22 +96,34 @@ export async function generateNarrations(params: {
 }): Promise<GenerateResult> {
   const { apiKey, model, prompt } = params;
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(OPENAI_RESPONSES_URL, {
+  // reasoning を付けて呼ぶ（推論モデルの推論トークン・遅延を抑える）。
+  // 非推論モデルは reasoning 非対応で 400 になり得るため、その場合は reasoning 無しで再試行。
+  const callOnce = (includeReasoning: boolean): Promise<Response> => {
+    const body: Record<string, unknown> = {
+      model,
+      instructions: SYSTEM_INSTRUCTIONS,
+      input: prompt,
+      max_output_tokens: MAX_OUTPUT_TOKENS,
+    };
+    if (includeReasoning) body.reasoning = { effort: "low" };
+    return fetch(OPENAI_RESPONSES_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        instructions: SYSTEM_INSTRUCTIONS,
-        input: prompt,
-        max_output_tokens: 2000,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(OPENAI_FETCH_TIMEOUT_MS),
     });
+  };
+
+  let upstream: Response;
+  try {
+    upstream = await callOnce(true);
+    // reasoning 非対応モデル等で 400 のときは reasoning を外して一度だけ再試行
+    if (upstream.status === 400) {
+      upstream = await callOnce(false);
+    }
   } catch (e) {
     if (e instanceof DOMException && e.name === "TimeoutError") {
       return { ok: false, status: 504, reason: "timeout" };

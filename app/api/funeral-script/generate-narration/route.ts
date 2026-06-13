@@ -20,7 +20,8 @@ import type {
 } from "@/lib/funeral-script/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// 推論モデル（gpt-5 系）は本文生成に時間がかかるため、関数の上限を延長する。
+export const maxDuration = 120;
 
 const DEFAULT_TEXT_MODEL = "gpt-5.5";
 const MAX_BODY_CHARS = 1200;
@@ -105,6 +106,31 @@ export async function POST(request: Request): Promise<Response> {
     if (result.status === 429) {
       return errorResponse(
         "OpenAI の利用上限またはレート制限に達しました。時間をおいて再試行してください。",
+        502,
+        GENERIC_FAIL,
+      );
+    }
+    if (result.status === 404 || result.status === 400) {
+      return errorResponse(
+        `テキストモデルの呼び出しに失敗しました（HTTP ${result.status}）。OPENAI_TEXT_MODEL（現在: ${model}）が正しいかご確認ください。`,
+        502,
+        GENERIC_FAIL,
+      );
+    }
+    if (result.reason === "timeout") {
+      return errorResponse(
+        "AI生成に時間がかかり、タイムアウトしました。もう一度お試しください（長さを下げると速くなります）。",
+        504,
+        GENERIC_FAIL,
+      );
+    }
+    if (
+      result.reason === "empty" ||
+      result.reason === "bad_json" ||
+      result.reason === "parse"
+    ) {
+      return errorResponse(
+        "AIの応答を取得できませんでした（応答が空、または形式が不正）。もう一度お試しください。",
         502,
         GENERIC_FAIL,
       );
