@@ -12,8 +12,7 @@ export type FuneralScriptCeremonyType =
   | "buddhist_wake" // 仏式 通夜のみ
   | "buddhist_wake_funeral" // 仏式 通夜・告別式（1台本に通夜＋告別式を収録）
   | "buddhist_funeral" // 仏式 一日葬（告別式のみ・通夜なし）
-  | "non_religious_funeral" // 無宗教 告別式
-  | "non_religious_one_day"; // 無宗教 告別式（一日葬）
+  | "non_religious_funeral"; // 無宗教 告別式
 
 export type FuneralScriptTone =
   | "standard" // 標準
@@ -24,7 +23,8 @@ export type FuneralScriptTone =
 export type FuneralScriptLength =
   | "short" // 短め
   | "standard" // 標準
-  | "detailed"; // 丁寧
+  | "detailed" // 丁寧
+  | "most_detailed"; // 最丁寧（季節感・ショートフレーズ活用の上位生成）
 
 export type FuneralScriptPrintSize =
   | "small" // 小さめ

@@ -108,16 +108,15 @@ export const lengthStyleInstructions: Record<FuneralScriptLength, string> = {
   standard: "標準的な長さ（目安3〜5文）。読み上げやすさを優先する。",
   detailed:
     "やや丁寧に、情報がある範囲で少し詳しく（目安5〜7文）。ただし長くしすぎない。",
+  most_detailed:
+    "最も丁寧に。季節感（生・没の月）や情景、参考表現を活かして情緒豊かに（目安7〜10文）。ただし司会者が読み上げやすいよう、一文は短く区切り、改行を入れる。冗長・くどさは避ける。",
 };
 
 /** 式種別に応じた追加ルール（共通＋仏式 or 無宗教） */
 export function ceremonyRulesFor(
   ceremonyType: FuneralScriptCeremonyType,
 ): string[] {
-  if (
-    ceremonyType === "non_religious_funeral" ||
-    ceremonyType === "non_religious_one_day"
-  ) {
+  if (ceremonyType === "non_religious_funeral") {
     return funeralNarrationStyleGuide.nonReligiousRules.slice();
   }
   return funeralNarrationStyleGuide.buddhistRules.slice();

@@ -92,7 +92,6 @@ const FLOWS: Record<FuneralScriptCeremonyType, FlowStep[]> = {
   buddhist_wake_funeral: [],
   buddhist_funeral: buddhistFuneral, // 一日葬（告別式のみ）も同フロー
   non_religious_funeral: nonReligiousFuneral,
-  non_religious_one_day: nonReligiousFuneral, // 無宗教 一日葬も同フロー
 };
 
 export function getFlow(ceremonyType: FuneralScriptCeremonyType): FlowStep[] {
@@ -108,7 +107,6 @@ export const CEREMONY_TYPE_LABELS: Record<
   buddhist_wake_funeral: "仏式 通夜・告別式",
   buddhist_funeral: "仏式 一日葬（告別式のみ）",
   non_religious_funeral: "無宗教 告別式",
-  non_religious_one_day: "無宗教 告別式（一日葬）",
 };
 
 /** 通夜・告別式（統合）かどうか */

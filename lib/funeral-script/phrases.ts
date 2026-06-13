@@ -379,10 +379,7 @@ export function closingDeclaration(
   ctx: ScriptContext,
   ceremonyType: FuneralScriptCeremonyType,
 ): string {
-  if (
-    ceremonyType === "non_religious_funeral" ||
-    ceremonyType === "non_religious_one_day"
-  ) {
+  if (ceremonyType === "non_religious_funeral") {
     return lines(
       "皆様、今一度、正面のご遺影へとお向き直りくださいませ。",
       `${ctx.deceasedSama}が繋いでくださったご縁、遺してくださった数多の思い出は、いつまでも皆様の心に生き続けてまいります。`,

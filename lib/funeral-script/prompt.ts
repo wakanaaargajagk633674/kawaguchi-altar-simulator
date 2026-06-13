@@ -15,11 +15,52 @@ import {
 } from "./style-guide";
 import { NG_WATCH_WORDS } from "./ng-words";
 import { buildScriptContext, closingDeclaration } from "./phrases";
+import {
+  expressionBank,
+  extractMonth,
+  seasonalExpression,
+} from "./expressions";
 import type {
   FuneralScriptCeremonyType,
   FuneralScriptFormData,
   FuneralScriptSection,
 } from "./types";
+
+/**
+ * 「最丁寧（most_detailed）」のときだけ付与する追加素材。
+ * - 生・没の月から季節を感じさせる句
+ * - ショートフレーズ集由来の参考表現（丸写しせず、合う場合のみ活用）
+ * それ以外の length では空配列。
+ */
+function buildMostDetailedBlock(form: FuneralScriptFormData): string[] {
+  if (form.length !== "most_detailed") return [];
+
+  const block: string[] = ["", "# 最丁寧モードの追加指示"];
+
+  const birthSeason = seasonalExpression(extractMonth(form.birthDate));
+  const deathSeason = seasonalExpression(extractMonth(form.deathDate));
+  if (birthSeason || deathSeason) {
+    block.push("- 季節感を一言添える（無理に全部使わず、自然に。創作の事実は加えない）:");
+    if (birthSeason) block.push(`  - お生まれの月の情景: ${birthSeason}`);
+    if (deathSeason) block.push(`  - 旅立たれた月の情景: ${deathSeason}`);
+  } else {
+    block.push(
+      "- 月が分かる場合は、その季節を感じさせる一言を自然に添える（不明なら無理に書かない）。",
+    );
+  }
+
+  block.push(
+    "- 次の参考表現は“素材”です。故人に合う場合のみ、言い回しを整えて自然に取り入れる（丸写し・羅列はしない／合わなければ使わない）:",
+    `  - 遺影への言及: ${expressionBank.portraitIntros.join(" / ")}`,
+    `  - 人柄: ${expressionBank.personalityExpressions.join(" / ")}`,
+    `  - 歩み・仕事: ${expressionBank.profileExpressions.join(" / ")}`,
+    `  - 家族への想い: ${expressionBank.familyExpressions.join(" / ")}`,
+    `  - 結びの余韻: ${expressionBank.closingExpressions.join(" / ")}`,
+    "- 情報のある項目を、歩み→人柄→趣味/活動→家族→遺影→結び の流れで丁寧につなぐ。入力に無い事実は決して作らない。",
+  );
+
+  return block;
+}
 
 /** セクションIDの接頭辞から式種別を判定（通夜・告別式の統合台本で日ごとに使い分けるため） */
 function ceremonyTypeFromSectionId(
@@ -31,7 +72,6 @@ function ceremonyTypeFromSectionId(
     "buddhist_wake",
     "buddhist_funeral",
     "non_religious_funeral",
-    "non_religious_one_day",
   ];
   // より長い接頭辞を優先（buddhist_wake_funeral を buddhist_wake より先に判定）
   for (const t of known) {
@@ -101,9 +141,7 @@ export function buildFuneralNarrationPrompt(params: {
 }): string {
   const { form, targetSections } = params;
   const ceremonyLabel = CEREMONY_TYPE_LABELS[form.ceremonyType];
-  const isNonReligious =
-    form.ceremonyType === "non_religious_funeral" ||
-    form.ceremonyType === "non_religious_one_day";
+  const isNonReligious = form.ceremonyType === "non_religious_funeral";
   const nameForGuide = form.deceasedName.trim()
     ? `${form.deceasedName.trim()}様`
     : "故人様";
@@ -138,6 +176,9 @@ export function buildFuneralNarrationPrompt(params: {
     ...guide.portraitMentionTips,
   ];
 
+  // 「最丁寧」モードの追加素材（季節感・参考表現）
+  const mostDetailedBlock = buildMostDetailedBlock(form);
+
   return [
     "あなたは、日本の葬儀における司会者向けの台本ナレーションを作成する専門家です。",
     "現場の司会資料から整理された文体ルール・構成ルール・表現傾向に厳密に従ってください。",
@@ -163,6 +204,7 @@ export function buildFuneralNarrationPrompt(params: {
     "",
     "# 文体・構成ルール（必ず守る）",
     ...rules.map((r) => `- ${r}`),
+    ...mostDetailedBlock,
     "",
     "# 避ける表現（忌み言葉・重ね言葉・直接表現）",
     `- 次の語は避ける: ${NG_WATCH_WORDS.join("、")}`,

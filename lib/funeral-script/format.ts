@@ -88,6 +88,7 @@ export const LENGTH_LABELS: Record<FuneralScriptLength, string> = {
   short: "短め",
   standard: "標準",
   detailed: "丁寧",
+  most_detailed: "最丁寧",
 };
 
 export const PRINT_SIZE_LABELS: Record<FuneralScriptPrintSize, string> = {
@@ -102,9 +103,7 @@ export { CEREMONY_TYPE_LABELS };
 export function defaultFormData(
   ceremonyType: FuneralScriptCeremonyType = "buddhist_funeral",
 ): FuneralScriptFormData {
-  const isNonReligious =
-    ceremonyType === "non_religious_funeral" ||
-    ceremonyType === "non_religious_one_day";
+  const isNonReligious = ceremonyType === "non_religious_funeral";
   // 告別式を含む式（一日葬・通夜告別式）。お別れ準備・出棺・火葬場の既定オン
   const hasFarewellDay =
     ceremonyType === "buddhist_funeral" ||

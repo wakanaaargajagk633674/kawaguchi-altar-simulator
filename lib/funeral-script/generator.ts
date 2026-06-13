@@ -42,9 +42,7 @@ function buildStep(
   form: FuneralScriptFormData,
 ): SectionDraft | null {
   const isWake = form.ceremonyType === "buddhist_wake";
-  const isNonReligious =
-    form.ceremonyType === "non_religious_funeral" ||
-    form.ceremonyType === "non_religious_one_day";
+  const isNonReligious = form.ceremonyType === "non_religious_funeral";
 
   switch (key) {
     case "pre_announcement":
