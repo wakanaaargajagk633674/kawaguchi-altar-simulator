@@ -80,6 +80,48 @@ function ceremonyTypeFromSectionId(
   return fallback;
 }
 
+/** 会葬者の様子 → AI へ渡す状況説明 */
+const WAKE_ATTENDANCE_PHRASES: Record<string, string> = {
+  many: "通夜には大勢の会葬者がお運びになった",
+  more_than_expected: "通夜には予想を上回る多くの会葬者がお運びになった",
+  family_centered: "通夜はご親族・親しい方々を中心に営まれた",
+  heartfelt_small: "通夜は少人数ながら心のこもった見送りとなった",
+};
+
+/**
+ * 告別式の「偲ぶ」開式ナレーションかどうか（通夜への言及を載せる対象）。
+ * - 仏式 告別式/一日葬: 「開式ナレーション」
+ * - 無宗教 告別式: 「メインナレーション」
+ * - 通夜（buddhist_wake）当日のナレーションは対象外（前日の通夜にはまだ言及できない）。
+ */
+function isFuneralDayOpening(
+  section: FuneralScriptSection,
+  fallback: FuneralScriptCeremonyType,
+): boolean {
+  const sub = ceremonyTypeFromSectionId(section.id, fallback);
+  if (sub === "buddhist_wake") return false;
+  return section.title.includes("開式") || section.title.includes("メイン");
+}
+
+/** 通夜引き継ぎ素材があれば、告別式開式ナレーションへ織り込む指示行を作る */
+function wakeReferenceLines(form: FuneralScriptFormData): string[] {
+  const attendance = form.wakeAttendance
+    ? WAKE_ATTENDANCE_PHRASES[form.wakeAttendance]
+    : undefined;
+  const impression = form.wakeImpression?.trim();
+  if (!attendance && !impression) return [];
+
+  const facts: string[] = [];
+  if (attendance) facts.push(attendance);
+  if (impression) facts.push(`通夜で印象的だったこと: ${impression}`);
+
+  return [
+    "  前日の通夜の様子（この告別式の冒頭付近で自然に触れる）:",
+    ...facts.map((f) => `    - ${f}`),
+    "  指示: 上記の通夜の事実を、単に述べるのではなく、故人の歩み・人柄に結びつけて意味づけする一文を冒頭付近に自然に織り込む（例:「昨夜の通夜には多くの方にお運びいただきました。これもひとえに、〇〇様が歩んでこられた〜の証でございましょう」）。大げさにせず一文程度に留め、書かれていない事実は創作しない。",
+  ];
+}
+
 /** セクションの役割ガイド（タイトルから推定） */
 function sectionRoleGuide(section: FuneralScriptSection): {
   kindLabel: string;
@@ -164,6 +206,9 @@ export function buildFuneralNarrationPrompt(params: {
       const sub = ceremonyTypeFromSectionId(s.id, form.ceremonyType);
       const closingLine = closingDeclaration(ctx, sub).replace(/\n/g, " ");
       lines.push(`  閉式の言葉（この趣旨で必ず締める。言い回しは整えてよい）: ${closingLine}`);
+    }
+    if (isFuneralDayOpening(s, form.ceremonyType)) {
+      lines.push(...wakeReferenceLines(form));
     }
     return lines.join("\n");
   });

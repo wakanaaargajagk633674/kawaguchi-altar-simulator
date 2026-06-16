@@ -13,6 +13,7 @@ import type {
   FuneralScriptPrintSize,
   FuneralScriptSection,
   FuneralScriptTone,
+  FuneralScriptWakeAttendance,
 } from "./types";
 
 /** 台本セクション配列を、見出し＋本文＋メモのプレーンテキストに変換（コピー用） */
@@ -91,6 +92,18 @@ export const LENGTH_LABELS: Record<FuneralScriptLength, string> = {
   most_detailed: "最丁寧",
 };
 
+/** 通夜の会葬者の様子（告別式で言及する素材）の選択ラベル */
+export const WAKE_ATTENDANCE_LABELS: Record<
+  FuneralScriptWakeAttendance,
+  string
+> = {
+  "": "言及しない",
+  many: "大勢の会葬者",
+  more_than_expected: "予想以上の会葬者",
+  family_centered: "親族・親しい方中心",
+  heartfelt_small: "心のこもった少人数",
+};
+
 export const PRINT_SIZE_LABELS: Record<FuneralScriptPrintSize, string> = {
   small: "小さめ",
   standard: "標準",
@@ -134,6 +147,9 @@ export function defaultFormData(
     familyStructure: "",
     episodes: "",
     personality: "",
+
+    wakeAttendance: "",
+    wakeImpression: "",
 
     hasCondolenceAddress: false,
     hasTelegram: isFuneral || isNonReligious,
