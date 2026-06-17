@@ -3,11 +3,16 @@
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import FuneralScriptForm from "@/components/funeral-script/FuneralScriptForm";
+import FuneralScriptFileControls from "@/components/funeral-script/FuneralScriptFileControls";
 import FuneralScriptAiControls from "@/components/funeral-script/FuneralScriptAiControls";
 import FuneralScriptPreview from "@/components/funeral-script/FuneralScriptPreview";
 import FuneralScriptPrintView from "@/components/funeral-script/FuneralScriptPrintView";
 import FuneralScriptToolbar from "@/components/funeral-script/FuneralScriptToolbar";
 import { generateFuneralScript } from "@/lib/funeral-script/generator";
+import {
+  buildSavedFileName,
+  serializeSavedFile,
+} from "@/lib/funeral-script/save-file";
 import {
   CEREMONY_TYPE_LABELS,
   defaultFormData,
@@ -166,6 +171,36 @@ export default function FuneralScriptPage() {
     setCopied(false);
   }, [preAiSections]);
 
+  // 台本をファイルに書き出す（通夜→告別式の引き継ぎ用）
+  const handleSaveFile = useCallback(() => {
+    const json = serializeSavedFile(form, sections, new Date());
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = buildSavedFileName(form, new Date());
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [form, sections]);
+
+  // 保存ファイルを読み込み、form と sections を復元
+  const handleLoadFile = useCallback(
+    (
+      loadedForm: FuneralScriptFormData,
+      loadedSections: FuneralScriptSection[],
+    ) => {
+      setForm(loadedForm);
+      setSections(loadedSections);
+      setPreAiSections(null);
+      setAiError(null);
+      setAiWarnings([]);
+      setCopied(false);
+    },
+    [],
+  );
+
   const handleEditBody = useCallback((id: string, body: string) => {
     setSections((prev) =>
       prev.map((section) =>
@@ -234,7 +269,12 @@ export default function FuneralScriptPage() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* 入力フォーム */}
-          <div>
+          <div className="grid content-start gap-4">
+            <FuneralScriptFileControls
+              canSave={hasScript}
+              onSave={handleSaveFile}
+              onLoaded={handleLoadFile}
+            />
             <FuneralScriptForm
               form={form}
               onChange={handleChange}

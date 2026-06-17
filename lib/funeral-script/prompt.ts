@@ -80,6 +80,68 @@ function ceremonyTypeFromSectionId(
   return fallback;
 }
 
+/** 会葬者の様子 → AI へ渡す状況説明 */
+const WAKE_ATTENDANCE_PHRASES: Record<string, string> = {
+  many: "通夜には大勢の会葬者がお運びになった",
+  more_than_expected: "通夜には予想を上回る多くの会葬者がお運びになった",
+  family_centered: "通夜はご親族・親しい方々を中心に営まれた",
+  heartfelt_small: "通夜は少人数ながら心のこもった見送りとなった",
+};
+
+/**
+ * 告別式の「偲ぶ」開式ナレーションかどうか（通夜への言及を載せる対象）。
+ * - 仏式 告別式/一日葬: 「開式ナレーション」
+ * - 無宗教 告別式: 「メインナレーション」
+ * - 通夜（buddhist_wake）当日のナレーションは対象外（前日の通夜にはまだ言及できない）。
+ */
+function isFuneralDayOpening(
+  section: FuneralScriptSection,
+  fallback: FuneralScriptCeremonyType,
+): boolean {
+  const sub = ceremonyTypeFromSectionId(section.id, fallback);
+  if (sub === "buddhist_wake") return false;
+  return section.title.includes("開式") || section.title.includes("メイン");
+}
+
+/** 開式ナレーションかどうか（通夜・告別式とも対象） */
+function isOpeningNarration(section: FuneralScriptSection): boolean {
+  return section.title.includes("開式") || section.title.includes("メイン");
+}
+
+/**
+ * その日（通夜／告別式）ならではのナレーションの力点。
+ * 通夜・告別式を同じ調子で書かせず、役割を変えて単調な繰り返しを防ぐ。
+ */
+function openingDayEmphasis(sub: FuneralScriptCeremonyType): string[] {
+  if (sub === "buddhist_wake") {
+    return [
+      "  この通夜ならではの力点: 突然のお別れに、急ぎ駆けつけてくださった弔問への謝意を起点にする。故人を偲ぶ「はじまり」の導入として、生前の人柄に静かに触れ、明日の告別式へつなぐ含みを残す。語り出しは落ち着いた調子で。",
+    ];
+  }
+  return [
+    "  この告別式ならではの力点: いよいよ最後のお別れ・ご出立という節目。通夜での導入を受けて一歩進め、故人の歩みや遺された方々への想いを深め、結び（旅立ち・見送り）へ向けて展開する。通夜と同じ言い回し・同じ事実の単なる繰り返しは避ける。",
+  ];
+}
+
+/** 通夜引き継ぎ素材があれば、告別式開式ナレーションへ織り込む指示行を作る */
+function wakeReferenceLines(form: FuneralScriptFormData): string[] {
+  const attendance = form.wakeAttendance
+    ? WAKE_ATTENDANCE_PHRASES[form.wakeAttendance]
+    : undefined;
+  const impression = form.wakeImpression?.trim();
+  if (!attendance && !impression) return [];
+
+  const facts: string[] = [];
+  if (attendance) facts.push(attendance);
+  if (impression) facts.push(`通夜で印象的だったこと: ${impression}`);
+
+  return [
+    "  前日の通夜の様子（この告別式の冒頭付近で自然に触れる）:",
+    ...facts.map((f) => `    - ${f}`),
+    "  指示: 上記の通夜の事実を、単に述べるのではなく、故人の歩み・人柄に結びつけて意味づけする一文を冒頭付近に自然に織り込む（例:「昨夜の通夜には多くの方にお運びいただきました。これもひとえに、〇〇様が歩んでこられた〜の証でございましょう」）。大げさにせず一文程度に留め、書かれていない事実は創作しない。",
+  ];
+}
+
 /** セクションの役割ガイド（タイトルから推定） */
 function sectionRoleGuide(section: FuneralScriptSection): {
   kindLabel: string;
@@ -165,8 +227,26 @@ export function buildFuneralNarrationPrompt(params: {
       const closingLine = closingDeclaration(ctx, sub).replace(/\n/g, " ");
       lines.push(`  閉式の言葉（この趣旨で必ず締める。言い回しは整えてよい）: ${closingLine}`);
     }
+    if (isOpeningNarration(s)) {
+      const sub = ceremonyTypeFromSectionId(s.id, form.ceremonyType);
+      lines.push(...openingDayEmphasis(sub));
+    }
+    if (isFuneralDayOpening(s, form.ceremonyType)) {
+      lines.push(...wakeReferenceLines(form));
+    }
     return lines.join("\n");
   });
+
+  // 通夜と告別式の開式ナレーションが両方ある（統合台本）か
+  const openingDays = new Set(
+    targetSections
+      .filter(isOpeningNarration)
+      .map((s) => ceremonyTypeFromSectionId(s.id, form.ceremonyType)),
+  );
+  const hasBothDays =
+    openingDays.has("buddhist_wake") &&
+    (openingDays.has("buddhist_funeral") ||
+      openingDays.has("buddhist_wake_funeral"));
 
   const rules = [
     ...guide.commonToneRules,
@@ -175,6 +255,12 @@ export function buildFuneralNarrationPrompt(params: {
     ...guide.profileFlow,
     ...guide.portraitMentionTips,
   ];
+
+  if (hasBothDays) {
+    rules.push(
+      "通夜と告別式のナレーションは、同じ素材を扱っても内容・構成・言い回しを必ず変える。通夜は『お別れのはじまり・弔問への謝意』、告別式は『最後のお別れ・出立への展開と結び』と役割を分け、同じ文章の使い回しや同一エピソードの単純な再掲はしない。告別式は通夜を受けて一歩深める。",
+    );
+  }
 
   // 「最丁寧」モードの追加素材（季節感・参考表現）
   const mostDetailedBlock = buildMostDetailedBlock(form);

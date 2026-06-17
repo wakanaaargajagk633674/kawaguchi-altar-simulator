@@ -7,6 +7,7 @@ import {
   LENGTH_LABELS,
   PRINT_SIZE_LABELS,
   TONE_LABELS,
+  WAKE_ATTENDANCE_LABELS,
 } from "@/lib/funeral-script/format";
 import type {
   FuneralScriptCeremonyType,
@@ -14,6 +15,7 @@ import type {
   FuneralScriptLength,
   FuneralScriptPrintSize,
   FuneralScriptTone,
+  FuneralScriptWakeAttendance,
 } from "@/lib/funeral-script/types";
 
 type FuneralScriptFormProps = {
@@ -116,6 +118,8 @@ export default function FuneralScriptForm({
   onGenerate,
 }: FuneralScriptFormProps) {
   const isBuddhist = form.ceremonyType.startsWith("buddhist");
+  // 告別式を含む式のみ「通夜の引き継ぎ」欄を表示（通夜のみは対象外）
+  const hasFuneralDay = form.ceremonyType !== "buddhist_wake";
 
   return (
     <div className="grid gap-4">
@@ -294,6 +298,48 @@ export default function FuneralScriptForm({
           />
         </div>
       </section>
+
+      {/* 通夜の引き継ぎ（告別式で通夜に言及する素材） */}
+      {hasFuneralDay && (
+        <section className={cardClass}>
+          <SectionTitle>通夜の引き継ぎ（任意）</SectionTitle>
+          <p className="mb-3 text-xs text-slate-500">
+            前日の通夜の様子を入れると、告別式の冒頭ナレーションで「通夜には〜、これも故人さんが歩んでこられた〜」のように通夜に触れて生成します。
+            <strong>空欄なら通夜には言及せず、通常の告別式ナレーション</strong>になります。
+          </p>
+          <div className="grid gap-3">
+            <label className="block">
+              <span className={labelClass}>通夜の会葬者の様子</span>
+              <select
+                value={form.wakeAttendance ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    wakeAttendance: e.target
+                      .value as FuneralScriptWakeAttendance,
+                  })
+                }
+                className={inputClass}
+              >
+                {(
+                  Object.keys(
+                    WAKE_ATTENDANCE_LABELS,
+                  ) as FuneralScriptWakeAttendance[]
+                ).map((v) => (
+                  <option key={v} value={v}>
+                    {WAKE_ATTENDANCE_LABELS[v]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <TextAreaField
+              label="通夜で印象的だったこと（任意）"
+              value={form.wakeImpression}
+              onChange={(v) => onChange({ wakeImpression: v })}
+              placeholder="例：弔問の列が途切れず、町内の皆様が多く参列された"
+            />
+          </div>
+        </section>
+      )}
 
       {/* 進行オプション */}
       <section className={cardClass}>

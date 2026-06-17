@@ -26,6 +26,14 @@ export type FuneralScriptLength =
   | "detailed" // 丁寧
   | "most_detailed"; // 最丁寧（季節感・ショートフレーズ活用の上位生成）
 
+/** 通夜の会葬者の様子（告別式で通夜に言及する素材。"" は言及しない） */
+export type FuneralScriptWakeAttendance =
+  | "" // 言及しない（既定）
+  | "many" // 大勢の会葬者
+  | "more_than_expected" // 予想以上の会葬者
+  | "family_centered" // 親族・親しい方中心
+  | "heartfelt_small"; // 心のこもった少人数
+
 export type FuneralScriptPrintSize =
   | "small" // 小さめ
   | "standard" // 標準
@@ -93,6 +101,10 @@ export type FuneralScriptFormData = {
   episodes?: string;
   personality?: string;
 
+  // 通夜の引き継ぎ（告別式で通夜に言及する素材。空なら一切言及しない）
+  wakeAttendance?: FuneralScriptWakeAttendance; // 会葬者の様子
+  wakeImpression?: string; // 通夜で印象的だったこと（自由記入）
+
   // 進行オプション
   hasCondolenceAddress: boolean; // 弔辞
   hasTelegram: boolean; // 弔電紹介
@@ -140,4 +152,22 @@ export type GenerateNarrationResponse = {
 export type GenerateNarrationError = {
   error: string;
   detail?: string;
+};
+
+// ──────────────────────────────────────────────────────────
+// 台本の保存ファイル（通夜→告別式の引き継ぎ用・ブラウザ完結／DBなし）
+// 通夜台本を1ファイルに書き出し、翌日読み込んで告別式台本に引き継ぐ。
+// ──────────────────────────────────────────────────────────
+
+/** 保存ファイルの判別子・スキーマバージョン */
+export const FUNERAL_SCRIPT_FILE_KIND = "kawaguchi-funeral-script" as const;
+export const FUNERAL_SCRIPT_FILE_VERSION = 1 as const;
+
+/** 書き出し／読み込みする台本ファイルの中身 */
+export type FuneralScriptSavedFile = {
+  kind: typeof FUNERAL_SCRIPT_FILE_KIND;
+  version: number;
+  savedAt: string; // ISO 文字列（保存時刻）
+  form: FuneralScriptFormData;
+  sections: FuneralScriptSection[];
 };
