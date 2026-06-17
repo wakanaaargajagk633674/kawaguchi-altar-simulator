@@ -103,6 +103,26 @@ function isFuneralDayOpening(
   return section.title.includes("開式") || section.title.includes("メイン");
 }
 
+/** 開式ナレーションかどうか（通夜・告別式とも対象） */
+function isOpeningNarration(section: FuneralScriptSection): boolean {
+  return section.title.includes("開式") || section.title.includes("メイン");
+}
+
+/**
+ * その日（通夜／告別式）ならではのナレーションの力点。
+ * 通夜・告別式を同じ調子で書かせず、役割を変えて単調な繰り返しを防ぐ。
+ */
+function openingDayEmphasis(sub: FuneralScriptCeremonyType): string[] {
+  if (sub === "buddhist_wake") {
+    return [
+      "  この通夜ならではの力点: 突然のお別れに、急ぎ駆けつけてくださった弔問への謝意を起点にする。故人を偲ぶ「はじまり」の導入として、生前の人柄に静かに触れ、明日の告別式へつなぐ含みを残す。語り出しは落ち着いた調子で。",
+    ];
+  }
+  return [
+    "  この告別式ならではの力点: いよいよ最後のお別れ・ご出立という節目。通夜での導入を受けて一歩進め、故人の歩みや遺された方々への想いを深め、結び（旅立ち・見送り）へ向けて展開する。通夜と同じ言い回し・同じ事実の単なる繰り返しは避ける。",
+  ];
+}
+
 /** 通夜引き継ぎ素材があれば、告別式開式ナレーションへ織り込む指示行を作る */
 function wakeReferenceLines(form: FuneralScriptFormData): string[] {
   const attendance = form.wakeAttendance
@@ -207,11 +227,26 @@ export function buildFuneralNarrationPrompt(params: {
       const closingLine = closingDeclaration(ctx, sub).replace(/\n/g, " ");
       lines.push(`  閉式の言葉（この趣旨で必ず締める。言い回しは整えてよい）: ${closingLine}`);
     }
+    if (isOpeningNarration(s)) {
+      const sub = ceremonyTypeFromSectionId(s.id, form.ceremonyType);
+      lines.push(...openingDayEmphasis(sub));
+    }
     if (isFuneralDayOpening(s, form.ceremonyType)) {
       lines.push(...wakeReferenceLines(form));
     }
     return lines.join("\n");
   });
+
+  // 通夜と告別式の開式ナレーションが両方ある（統合台本）か
+  const openingDays = new Set(
+    targetSections
+      .filter(isOpeningNarration)
+      .map((s) => ceremonyTypeFromSectionId(s.id, form.ceremonyType)),
+  );
+  const hasBothDays =
+    openingDays.has("buddhist_wake") &&
+    (openingDays.has("buddhist_funeral") ||
+      openingDays.has("buddhist_wake_funeral"));
 
   const rules = [
     ...guide.commonToneRules,
@@ -220,6 +255,12 @@ export function buildFuneralNarrationPrompt(params: {
     ...guide.profileFlow,
     ...guide.portraitMentionTips,
   ];
+
+  if (hasBothDays) {
+    rules.push(
+      "通夜と告別式のナレーションは、同じ素材を扱っても内容・構成・言い回しを必ず変える。通夜は『お別れのはじまり・弔問への謝意』、告別式は『最後のお別れ・出立への展開と結び』と役割を分け、同じ文章の使い回しや同一エピソードの単純な再掲はしない。告別式は通夜を受けて一歩深める。",
+    );
+  }
 
   // 「最丁寧」モードの追加素材（季節感・参考表現）
   const mostDetailedBlock = buildMostDetailedBlock(form);
