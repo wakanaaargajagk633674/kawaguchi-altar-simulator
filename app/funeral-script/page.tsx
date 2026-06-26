@@ -38,6 +38,13 @@ const AI_GENERIC_ERROR =
   "AI生成に失敗しました。固定テンプレートの台本はそのまま利用できます。";
 
 type WorkspaceView = "form" | "script" | "letter";
+type PdfShareData = {
+  files?: File[];
+};
+type FileShareNavigator = Navigator & {
+  share?: (data: PdfShareData) => Promise<void>;
+  canShare?: (data: PdfShareData) => boolean;
+};
 
 // 印刷用CSS（共有 globals.css は変更せず、本ページ内に閉じる）
 const PRINT_CSS = `
@@ -78,6 +85,31 @@ function safeFileNamePart(value: string): string {
 function buildScriptPdfFileName(form: FuneralScriptFormData): string {
   const name = safeFileNamePart(form.deceasedName || "未入力");
   return `葬儀司会台本_${name}.pdf`;
+}
+
+function isAppleTouchDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    /iP(hone|ad|od)/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+function createPdfFile(blob: Blob, filename: string): File {
+  return new File([blob], filename, { type: "application/pdf" });
+}
+
+function canSharePdf(blob: Blob, filename: string): boolean {
+  if (typeof navigator === "undefined" || typeof File === "undefined") {
+    return false;
+  }
+  const nav = navigator as FileShareNavigator;
+  if (typeof nav.share !== "function") return false;
+  const file = createPdfFile(blob, filename);
+  return typeof nav.canShare === "function"
+    ? nav.canShare({ files: [file] })
+    : true;
 }
 
 async function writeClipboardText(text: string): Promise<void> {
@@ -121,7 +153,9 @@ export default function FuneralScriptPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfFileName, setPdfFileName] = useState("葬儀司会台本.pdf");
+  const [pdfShareAvailable, setPdfShareAvailable] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -129,11 +163,17 @@ export default function FuneralScriptPage() {
     };
   }, [pdfUrl]);
 
+  const clearPdfResult = useCallback(() => {
+    setPdfError(null);
+    setPdfUrl(null);
+    setPdfBlob(null);
+    setPdfShareAvailable(false);
+  }, []);
+
   const handleChange = useCallback(
     (patch: Partial<FuneralScriptFormData>) => {
       setForm((prev) => ({ ...prev, ...patch }));
-      setPdfError(null);
-      setPdfUrl(null);
+      clearPdfResult();
       if (patch.hasOriginalCondolenceLetter === false) {
         setLetterError(null);
         setLetterWarnings([]);
@@ -141,7 +181,7 @@ export default function FuneralScriptPage() {
         setActiveView((prev) => (prev === "letter" ? "form" : prev));
       }
     },
-    [],
+    [clearPdfResult],
   );
 
   // 式種別変更時は、その式に推奨の進行オプション既定値へ更新（入力済みテキストは保持）
@@ -183,10 +223,9 @@ export default function FuneralScriptPage() {
     setPreAiSections(null);
     setAiError(null);
     setAiWarnings([]);
-    setPdfError(null);
-    setPdfUrl(null);
+    clearPdfResult();
     setActiveView("script");
-  }, [form]);
+  }, [clearPdfResult, form]);
 
   // AI生成対象（ai_placeholder）の id 一覧
   const aiTargetIds = useMemo(
@@ -307,11 +346,10 @@ export default function FuneralScriptPage() {
       setLetterWarnings([]);
       setCopied(false);
       setLetterCopied(false);
-      setPdfError(null);
-      setPdfUrl(null);
+      clearPdfResult();
       setActiveView(loadedSections.length > 0 ? "script" : "form");
     },
-    [],
+    [clearPdfResult],
   );
 
   const handleEditBody = useCallback((id: string, body: string) => {
@@ -320,9 +358,8 @@ export default function FuneralScriptPage() {
         section.id === id ? { ...section, body } : section,
       ),
     );
-    setPdfError(null);
-    setPdfUrl(null);
-  }, []);
+    clearPdfResult();
+  }, [clearPdfResult]);
 
   const handleEditLetterBody = useCallback((body: string) => {
     setOriginalLetter((prev) =>
@@ -335,9 +372,8 @@ export default function FuneralScriptPage() {
         : prev,
     );
     setLetterCopied(false);
-    setPdfError(null);
-    setPdfUrl(null);
-  }, []);
+    clearPdfResult();
+  }, [clearPdfResult]);
 
   const handleGenerateLetter = useCallback(async () => {
     if (!form.hasOriginalCondolenceLetter) return;
@@ -412,15 +448,35 @@ export default function FuneralScriptPage() {
     if (sections.length === 0 || !pdfRef.current || pdfLoading) return;
 
     const filename = buildScriptPdfFileName(form);
+    const previewWindow = isAppleTouchDevice()
+      ? window.open("", "_blank")
+      : null;
+    if (previewWindow) {
+      previewWindow.document.write(
+        "<!doctype html><html><head><title>PDF作成中</title><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head><body style=\"font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:24px;line-height:1.7;color:#0f172a\"><p>PDFを作成しています。</p><p>完了するとこの画面にPDFを表示します。</p></body></html>",
+      );
+      previewWindow.document.close();
+    }
+
     setPdfFileName(filename);
     setPdfLoading(true);
     setPdfError(null);
 
     try {
       const blob = await createPdfBlobFromElement(pdfRef.current);
-      const url = downloadPdfBlob(blob, filename);
+      const url = isAppleTouchDevice()
+        ? URL.createObjectURL(blob)
+        : downloadPdfBlob(blob, filename);
       setPdfUrl(url);
+      setPdfBlob(blob);
+      setPdfShareAvailable(canSharePdf(blob, filename));
+      if (previewWindow) {
+        previewWindow.location.href = url;
+      }
     } catch {
+      if (previewWindow) {
+        previewWindow.close();
+      }
       setPdfError(
         "PDF作成に失敗しました。本文をコピーして印刷会社へ渡すか、時間をおいて再度お試しください。",
       );
@@ -428,6 +484,40 @@ export default function FuneralScriptPage() {
       setPdfLoading(false);
     }
   }, [form, pdfLoading, sections.length]);
+
+  const handleSharePdf = useCallback(async () => {
+    if (!pdfBlob) {
+      setPdfError("先にPDFを作成してください。");
+      return;
+    }
+    const nav = navigator as FileShareNavigator;
+    if (typeof nav.share !== "function") {
+      setPdfError("このブラウザでは共有保存を利用できません。PDFを開くから保存してください。");
+      return;
+    }
+
+    const file = createPdfFile(pdfBlob, pdfFileName);
+    if (typeof nav.canShare === "function" && !nav.canShare({ files: [file] })) {
+      setPdfError("この端末ではPDFファイル共有を利用できません。PDFを開くから保存してください。");
+      return;
+    }
+
+    try {
+      await nav.share({ files: [file] });
+      setPdfError(null);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setPdfError("共有保存を開始できませんでした。PDFを開くから保存してください。");
+    }
+  }, [pdfBlob, pdfFileName]);
+
+  const handleOpenPdf = useCallback(() => {
+    if (!pdfUrl) return;
+    const opened = window.open(pdfUrl, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      setPdfError("PDFを開けませんでした。ブラウザのポップアップ設定をご確認ください。");
+    }
+  }, [pdfUrl]);
 
   const hasScript = sections.length > 0;
   const hasLetter = form.hasOriginalCondolenceLetter;
@@ -591,19 +681,34 @@ export default function FuneralScriptPage() {
                   {pdfLoading && "PDFを作成しています。長い台本は少し時間がかかります。"}
                   {pdfError && pdfError}
                   {pdfUrl && !pdfLoading && !pdfError && (
-                    <span>
-                      PDFを作成しました。iPhoneで保存画面が出ない場合は{" "}
-                      <a
-                        href={pdfUrl}
-                        download={pdfFileName}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-semibold text-emerald-800 underline underline-offset-2"
-                      >
-                        PDFを開く
-                      </a>
-                      から共有・保存してください。
-                    </span>
+                    <div>
+                      <p>PDFを作成しました。</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {pdfShareAvailable && (
+                          <button
+                            type="button"
+                            onClick={handleSharePdf}
+                            className="min-h-10 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white"
+                          >
+                            ファイル/Driveへ保存
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleOpenPdf}
+                          className="min-h-10 rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800"
+                        >
+                          PDFを開く
+                        </button>
+                        <a
+                          href={pdfUrl}
+                          download={pdfFileName}
+                          className="inline-flex min-h-10 items-center rounded-md border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                        >
+                          ダウンロード
+                        </a>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -664,15 +769,31 @@ export default function FuneralScriptPage() {
                 >
                   {pdfError}
                   {pdfUrl && !pdfError && (
-                    <a
-                      href={pdfUrl}
-                      download={pdfFileName}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-semibold text-emerald-800 underline underline-offset-2"
-                    >
-                      作成済みPDFを開く
-                    </a>
+                    <div className="grid grid-cols-2 gap-2">
+                      {pdfShareAvailable && (
+                        <button
+                          type="button"
+                          onClick={handleSharePdf}
+                          className="min-h-10 rounded-md bg-emerald-700 px-2 py-1.5 text-xs font-semibold text-white"
+                        >
+                          保存/Drive
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleOpenPdf}
+                        className="min-h-10 rounded-md border border-emerald-300 bg-white px-2 py-1.5 text-xs font-semibold text-emerald-800"
+                      >
+                        PDFを開く
+                      </button>
+                      <a
+                        href={pdfUrl}
+                        download={pdfFileName}
+                        className="inline-flex min-h-10 items-center justify-center rounded-md border border-stone-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
+                      >
+                        ダウンロード
+                      </a>
+                    </div>
                   )}
                 </div>
               )}

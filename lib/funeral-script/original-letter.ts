@@ -67,13 +67,13 @@ function buildLetterTitle(form: FuneralScriptFormData): string {
   if (title) return title;
 
   const words = shortText(form.letterMemorableWords ?? "", 18);
-  if (words) return `${words} その言葉を胸に`;
+  if (words) return `${words} その言葉を大切に`;
 
   const mainMessage = shortText(form.letterMainMessage ?? "", 18);
   if (mainMessage) return `${mainMessage} 感謝を込めて`;
 
   const personality = shortText(form.personality ?? "", 16);
-  if (personality) return `${personality}面影を偲んで`;
+  if (personality) return `${personality}ぬくもりに支えられて`;
 
   const hobbies = shortText(form.hobbies ?? "", 12);
   if (hobbies) return `${hobbies}を愛した日々`;
@@ -103,23 +103,23 @@ function buildStoryLines(form: FuneralScriptFormData): string[] {
   const memorableWords = cleanForLetter(form.letterMemorableWords);
 
   if (mainMessage) {
-    lines.push(`私ども家族が何よりお伝えしたいのは ${mainMessage} という感謝の思いでございます`);
+    lines.push(`私たち家族が皆様にお伝えしたいのは ${mainMessage} という思いです`);
   }
 
   if (memorableWords) {
-    lines.push(`${name}が大切にしていた「${memorableWords}」という言葉は 今も家族の心の支えでございます`);
+    lines.push(`${name}が大切にしていた「${memorableWords}」という言葉を思い出すたび 家族は今も励まされています`);
   }
 
   if (episodes) {
-    lines.push(`思い返せば ${episodes} その何気ない場面に ${name}らしい温かなまなざしがありました`);
+    lines.push(`${episodes} そんな日々の一場面を 家族はこれからも大切にしてまいります`);
   }
 
   if (personality) {
-    lines.push(`${personality}人柄は そばにいる者を安心させ 多くの方の記憶にやさしく残っております`);
+    lines.push(`${personality}ところがあり 家の中ではその一言や仕草に何度も助けられてきました`);
   }
 
   if (hobbies) {
-    lines.push(`${hobbies}を楽しむ時間には 穏やかな笑顔があり 家族にとっても大切な思い出でございます`);
+    lines.push(`${hobbies}に向かう時間は 本人らしさがよく表れるひとときで 家族にとっても忘れがたい記憶です`);
   }
 
   if (work || community || achievements) {
@@ -127,15 +127,15 @@ function buildStoryLines(form: FuneralScriptFormData): string[] {
     if (work) parts.push(`${work}に励み`);
     if (community) parts.push(`${community}に心を寄せ`);
     if (achievements) parts.push(`${achievements}を大切にし`);
-    lines.push(`${name}は ${parts.join(" ")} いつも誠実に人と向き合ってまいりました`);
+    lines.push(`${parts.join(" ")} その背中から 家族は人に誠実であることを教わりました`);
   }
 
   if (family) {
-    lines.push(`${family}に囲まれた日々の中で ${name}が注いでくれた思いやりは かけがえのない支えでございました`);
+    lines.push(`${family}に囲まれて過ごした時間の中に 家族だけが知るやさしさがたくさん残っています`);
   }
 
   if (portrait) {
-    lines.push(`ご遺影の ${portrait}の表情を見るたび 穏やかな声が聞こえてくるように感じております`);
+    lines.push(`遺影に選んだ写真は ${portrait}の一枚です 家族の好きな表情を皆様にも見ていただきたく選びました`);
   }
 
   return lines.slice(0, 6);
@@ -160,10 +160,10 @@ export function buildOriginalCondolenceLetter(
   const storyLines = buildStoryLines(form);
   const body = sentenceLines([
     title,
-    `${subject} 葬儀に際しまして ご多用中にもかかわらずご会葬を賜り 心より御礼申し上げます`,
+    `本日は ${subject} 葬儀に際し ご会葬くださいまして 心より御礼申し上げます`,
     ...storyLines,
-    "皆様からお寄せいただいたお心は 私ども家族にとりまして大きな励みでございます",
-    "生前に賜りましたご厚情に 深く感謝申し上げるとともに これからも故人の面影を大切に歩んでまいります",
+    "皆様からお寄せいただいたお言葉に 私たち家族は支えられております",
+    "生前に賜りましたご厚情に 深く感謝申し上げるとともに いただいたご縁をこれからも大切にしてまいります",
     "本来であれば拝眉のうえ御礼申し上げるべきところ 略儀ながら書中をもちまして御礼申し上げます",
   ]);
 
@@ -244,6 +244,9 @@ export function detectOriginalLetterWarnings(body: string): string[] {
   }
   if (/ご家族より|伺いました|伺っております|だそう/.test(normalized)) {
     warnings.push("司会者目線の表現が含まれています。礼状本文は喪主・親族側の声に直してください。");
+  }
+  if (/面影を偲|歩んでまいりました|在りし日のお姿|見守っているよう/.test(normalized)) {
+    warnings.push("葬儀ナレーション調の表現が含まれています。会葬礼状として家族の手紙調に直してください。");
   }
   const count = originalLetterCharCount(body);
   if (count < 360) {
