@@ -93,15 +93,16 @@ export async function generateNarrations(params: {
   apiKey: string;
   model: string;
   prompt: string;
+  instructions?: string;
 }): Promise<GenerateResult> {
-  const { apiKey, model, prompt } = params;
+  const { apiKey, model, prompt, instructions } = params;
 
   // reasoning を付けて呼ぶ（推論モデルの推論トークン・遅延を抑える）。
   // 非推論モデルは reasoning 非対応で 400 になり得るため、その場合は reasoning 無しで再試行。
   const callOnce = (includeReasoning: boolean): Promise<Response> => {
     const body: Record<string, unknown> = {
       model,
-      instructions: SYSTEM_INSTRUCTIONS,
+      instructions: instructions ?? SYSTEM_INSTRUCTIONS,
       input: prompt,
       max_output_tokens: MAX_OUTPUT_TOKENS,
     };

@@ -72,6 +72,14 @@ export type FuneralScriptSection = {
   editable?: boolean; // 本文の編集を許可するか
 };
 
+export type FuneralScriptOriginalLetter = {
+  id: "original-condolence-letter";
+  title: string;
+  body: string;
+  aiGenerated?: boolean;
+  updatedAt?: string;
+};
+
 export type FuneralScriptFormData = {
   // 基本情報
   deceasedName: string;
@@ -100,6 +108,15 @@ export type FuneralScriptFormData = {
   familyStructure?: string;
   episodes?: string;
   personality?: string;
+
+  // オリジナル会葬礼状（任意）
+  hasOriginalCondolenceLetter: boolean;
+  letterDate?: string;
+  letterSenderAddress?: string;
+  letterSenderName?: string;
+  letterDeceasedRelationLabel?: string; // 例: 亡父 / 亡母 / 故
+  letterFamilyInstructions?: string; // 喪主・ご家族からの修正指示
+  letterPrintInstructions?: string; // 印刷会社への申し送り
 
   // 通夜の引き継ぎ（告別式で通夜に言及する素材。空なら一切言及しない）
   wakeAttendance?: FuneralScriptWakeAttendance; // 会葬者の様子
@@ -148,6 +165,16 @@ export type GenerateNarrationResponse = {
   warnings: string[];
 };
 
+export type GenerateOriginalLetterRequest = {
+  form: FuneralScriptFormData;
+  currentLetter?: FuneralScriptOriginalLetter | null;
+};
+
+export type GenerateOriginalLetterResponse = {
+  letter: FuneralScriptOriginalLetter;
+  warnings: string[];
+};
+
 /** エラーレスポンス */
 export type GenerateNarrationError = {
   error: string;
@@ -170,4 +197,5 @@ export type FuneralScriptSavedFile = {
   savedAt: string; // ISO 文字列（保存時刻）
   form: FuneralScriptFormData;
   sections: FuneralScriptSection[];
+  originalLetter?: FuneralScriptOriginalLetter | null;
 };

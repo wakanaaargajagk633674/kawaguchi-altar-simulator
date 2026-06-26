@@ -4,17 +4,22 @@ import {
   printBodyTextClass,
   printHeadingTextClass,
 } from "@/lib/funeral-script/format";
+import { originalLetterToPrintText } from "@/lib/funeral-script/original-letter";
 import type {
   FuneralScriptCeremonyType,
+  FuneralScriptFormData,
+  FuneralScriptOriginalLetter,
   FuneralScriptPrintSize,
   FuneralScriptSection,
 } from "@/lib/funeral-script/types";
 
 type FuneralScriptPrintViewProps = {
   sections: FuneralScriptSection[];
+  form: FuneralScriptFormData;
   ceremonyType: FuneralScriptCeremonyType;
   deceasedName: string;
   printSize: FuneralScriptPrintSize;
+  originalLetter?: FuneralScriptOriginalLetter | null;
 };
 
 /**
@@ -26,9 +31,11 @@ type FuneralScriptPrintViewProps = {
  */
 export default function FuneralScriptPrintView({
   sections,
+  form,
   ceremonyType,
   deceasedName,
   printSize,
+  originalLetter,
 }: FuneralScriptPrintViewProps) {
   const name = deceasedName.trim();
   return (
@@ -91,6 +98,27 @@ export default function FuneralScriptPrintView({
           </section>
         );
       })}
+
+      {form.hasOriginalCondolenceLetter && originalLetter && (
+        <section className="fs-section fs-letter-page mt-10 border-t border-stone-300 pt-5">
+          <h2
+            className={cn(
+              "fs-heading mb-3 font-semibold text-slate-950",
+              printHeadingTextClass(printSize),
+            )}
+          >
+            印刷会社提出用 オリジナル会葬礼状原稿
+          </h2>
+          <p
+            className={cn(
+              "whitespace-pre-wrap text-slate-900",
+              printBodyTextClass(printSize),
+            )}
+          >
+            {originalLetterToPrintText(form, originalLetter)}
+          </p>
+        </section>
+      )}
     </div>
   );
 }

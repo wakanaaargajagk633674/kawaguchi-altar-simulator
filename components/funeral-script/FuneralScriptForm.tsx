@@ -299,6 +299,63 @@ export default function FuneralScriptForm({
         </div>
       </section>
 
+      {/* オリジナル会葬礼状 */}
+      <section className={cardClass}>
+        <SectionTitle>オリジナル会葬礼状</SectionTitle>
+        <ToggleField
+          label="オリジナル会葬礼状を作成する"
+          checked={form.hasOriginalCondolenceLetter}
+          onChange={(v) => onChange({ hasOriginalCondolenceLetter: v })}
+        />
+        {form.hasOriginalCondolenceLetter && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <TextField
+              label="礼状日付"
+              value={form.letterDate}
+              onChange={(v) => onChange({ letterDate: v })}
+              placeholder="例：令和8年6月26日"
+            />
+            <TextField
+              label="礼状の続柄表記"
+              value={form.letterDeceasedRelationLabel}
+              onChange={(v) => onChange({ letterDeceasedRelationLabel: v })}
+              placeholder="例：亡父 / 亡母 / 故"
+            />
+            <TextField
+              label="差出人住所"
+              value={form.letterSenderAddress}
+              onChange={(v) => onChange({ letterSenderAddress: v })}
+              placeholder="例：埼玉県川口市..."
+            />
+            <TextField
+              label="差出人名（喪主名）"
+              value={form.letterSenderName}
+              onChange={(v) => onChange({ letterSenderName: v })}
+              placeholder="空欄なら喪主名を使用"
+            />
+            <div className="sm:col-span-2">
+              <TextAreaField
+                label="喪主・ご家族からの修正指示"
+                value={form.letterFamilyInstructions}
+                onChange={(v) => onChange({ letterFamilyInstructions: v })}
+                placeholder="例：仕事の話を短くし、孫との思い出を入れてほしい"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <TextAreaField
+                label="印刷会社への申し送り"
+                value={form.letterPrintInstructions}
+                onChange={(v) => onChange({ letterPrintInstructions: v })}
+                placeholder="例：二つ折りカード、縦書き、淡い花柄で校正希望"
+              />
+            </div>
+            <p className="sm:col-span-2 text-xs leading-5 text-slate-500">
+              チェックした場合のみ、取材内容から礼状原稿を作成します。原稿はプレビュー側で直接編集でき、礼状だけを再生成できます。
+            </p>
+          </div>
+        )}
+      </section>
+
       {/* 通夜の引き継ぎ（告別式で通夜に言及する素材） */}
       {hasFuneralDay && (
         <section className={cardClass}>

@@ -148,6 +148,14 @@ export function defaultFormData(
     episodes: "",
     personality: "",
 
+    hasOriginalCondolenceLetter: false,
+    letterDate: "",
+    letterSenderAddress: "",
+    letterSenderName: "",
+    letterDeceasedRelationLabel: "",
+    letterFamilyInstructions: "",
+    letterPrintInstructions: "",
+
     wakeAttendance: "",
     wakeImpression: "",
 

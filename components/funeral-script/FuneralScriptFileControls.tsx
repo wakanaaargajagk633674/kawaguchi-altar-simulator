@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { parseSavedFile } from "@/lib/funeral-script/save-file";
 import type {
   FuneralScriptFormData,
+  FuneralScriptOriginalLetter,
   FuneralScriptSection,
 } from "@/lib/funeral-script/types";
 
@@ -16,6 +17,7 @@ type FuneralScriptFileControlsProps = {
   onLoaded: (
     form: FuneralScriptFormData,
     sections: FuneralScriptSection[],
+    originalLetter?: FuneralScriptOriginalLetter | null,
   ) => void;
 };
 
@@ -54,7 +56,11 @@ export default function FuneralScriptFileControls({
           setMessage(null);
           return;
         }
-        onLoaded(result.data.form, result.data.sections);
+        onLoaded(
+          result.data.form,
+          result.data.sections,
+          result.data.originalLetter,
+        );
         setError(null);
         setMessage(
           `「${result.data.form.deceasedName || "無名"}」の台本を読み込みました。式種別と通夜の様子を確認し、「台本を生成する」で告別式台本にできます。`,

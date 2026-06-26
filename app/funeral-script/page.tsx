@@ -5,10 +5,15 @@ import { useCallback, useMemo, useState } from "react";
 import FuneralScriptForm from "@/components/funeral-script/FuneralScriptForm";
 import FuneralScriptFileControls from "@/components/funeral-script/FuneralScriptFileControls";
 import FuneralScriptAiControls from "@/components/funeral-script/FuneralScriptAiControls";
+import FuneralScriptOriginalLetterPanel from "@/components/funeral-script/FuneralScriptOriginalLetterPanel";
 import FuneralScriptPreview from "@/components/funeral-script/FuneralScriptPreview";
 import FuneralScriptPrintView from "@/components/funeral-script/FuneralScriptPrintView";
 import FuneralScriptToolbar from "@/components/funeral-script/FuneralScriptToolbar";
 import { generateFuneralScript } from "@/lib/funeral-script/generator";
+import {
+  buildOriginalCondolenceLetter,
+  originalLetterToPrintText,
+} from "@/lib/funeral-script/original-letter";
 import {
   buildSavedFileName,
   serializeSavedFile,
@@ -21,8 +26,10 @@ import {
 import type {
   FuneralScriptCeremonyType,
   FuneralScriptFormData,
+  FuneralScriptOriginalLetter,
   FuneralScriptSection,
   GenerateNarrationResponse,
+  GenerateOriginalLetterResponse,
 } from "@/lib/funeral-script/types";
 
 const AI_GENERIC_ERROR =
@@ -40,8 +47,24 @@ const PRINT_CSS = `
   .fs-heading { break-after: avoid; page-break-after: avoid; }
   .fs-section.avoid-break { break-inside: avoid; page-break-inside: avoid; }
   .fs-section { break-inside: auto; orphans: 3; widows: 3; }
+  .fs-letter-page { break-before: page; page-break-before: always; }
 }
 `;
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  document.body.removeChild(ta);
+}
 
 export default function FuneralScriptPage() {
   const [form, setForm] = useState<FuneralScriptFormData>(() =>
@@ -49,6 +72,9 @@ export default function FuneralScriptPage() {
   );
   const [sections, setSections] = useState<FuneralScriptSection[]>([]);
   const [copied, setCopied] = useState(false);
+  const [letterCopied, setLetterCopied] = useState(false);
+  const [originalLetter, setOriginalLetter] =
+    useState<FuneralScriptOriginalLetter | null>(null);
 
   // AIナレーション生成の状態
   const [aiLoading, setAiLoading] = useState(false);
@@ -58,10 +84,18 @@ export default function FuneralScriptPage() {
   const [preAiSections, setPreAiSections] = useState<
     FuneralScriptSection[] | null
   >(null);
+  const [letterLoading, setLetterLoading] = useState(false);
+  const [letterError, setLetterError] = useState<string | null>(null);
+  const [letterWarnings, setLetterWarnings] = useState<string[]>([]);
 
   const handleChange = useCallback(
     (patch: Partial<FuneralScriptFormData>) => {
       setForm((prev) => ({ ...prev, ...patch }));
+      if (patch.hasOriginalCondolenceLetter === false) {
+        setLetterError(null);
+        setLetterWarnings([]);
+        setLetterCopied(false);
+      }
     },
     [],
   );
@@ -90,7 +124,17 @@ export default function FuneralScriptPage() {
 
   const handleGenerate = useCallback(() => {
     setSections(generateFuneralScript(form));
+    if (form.hasOriginalCondolenceLetter) {
+      setOriginalLetter((prev) => prev ?? buildOriginalCondolenceLetter(form));
+      setLetterError(null);
+      setLetterWarnings([]);
+    } else {
+      setOriginalLetter(null);
+      setLetterError(null);
+      setLetterWarnings([]);
+    }
     setCopied(false);
+    setLetterCopied(false);
     // テンプレート再生成時はAI状態をリセット
     setPreAiSections(null);
     setAiError(null);
@@ -173,7 +217,12 @@ export default function FuneralScriptPage() {
 
   // 台本をファイルに書き出す（通夜→告別式の引き継ぎ用）
   const handleSaveFile = useCallback(() => {
-    const json = serializeSavedFile(form, sections, new Date());
+    const json = serializeSavedFile(
+      form,
+      sections,
+      new Date(),
+      form.hasOriginalCondolenceLetter ? originalLetter : null,
+    );
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -183,20 +232,34 @@ export default function FuneralScriptPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [form, sections]);
+  }, [form, sections, originalLetter]);
 
   // 保存ファイルを読み込み、form と sections を復元
   const handleLoadFile = useCallback(
     (
       loadedForm: FuneralScriptFormData,
       loadedSections: FuneralScriptSection[],
+      loadedOriginalLetter?: FuneralScriptOriginalLetter | null,
     ) => {
-      setForm(loadedForm);
+      const normalizedForm = {
+        ...defaultFormData(loadedForm.ceremonyType),
+        ...loadedForm,
+      };
+      setForm(normalizedForm);
       setSections(loadedSections);
+      setOriginalLetter(
+        loadedOriginalLetter ??
+          (normalizedForm.hasOriginalCondolenceLetter
+            ? buildOriginalCondolenceLetter(normalizedForm)
+            : null),
+      );
       setPreAiSections(null);
       setAiError(null);
       setAiWarnings([]);
+      setLetterError(null);
+      setLetterWarnings([]);
       setCopied(false);
+      setLetterCopied(false);
     },
     [],
   );
@@ -209,32 +272,87 @@ export default function FuneralScriptPage() {
     );
   }, []);
 
-  const handleCopy = useCallback(async () => {
-    const text = sectionsToPlainText(sections, {
-      ceremonyType: form.ceremonyType,
-      deceasedName: form.deceasedName,
-    });
+  const handleEditLetterBody = useCallback((body: string) => {
+    setOriginalLetter((prev) =>
+      prev
+        ? {
+            ...prev,
+            body,
+            updatedAt: new Date().toISOString(),
+          }
+        : prev,
+    );
+    setLetterCopied(false);
+  }, []);
+
+  const handleGenerateLetter = useCallback(async () => {
+    if (!form.hasOriginalCondolenceLetter) return;
+    const current = originalLetter ?? buildOriginalCondolenceLetter(form);
+    setOriginalLetter(current);
+    setLetterLoading(true);
+    setLetterError(null);
+
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        // フォールバック（クリップボードAPI非対応環境）
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
+      const res = await fetch("/api/funeral-script/generate-original-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form, currentLetter: current }),
+      });
+      const data: unknown = await res.json();
+
+      if (!res.ok) {
+        const message =
+          (data as { error?: string })?.error ||
+          "オリジナル会葬礼状の再生成に失敗しました。現在の本文はそのまま編集できます。";
+        setLetterError(message);
+        setLetterWarnings([]);
+        return;
       }
+
+      const ok = data as GenerateOriginalLetterResponse;
+      setOriginalLetter(ok.letter);
+      setLetterWarnings(ok.warnings ?? []);
+      setLetterCopied(false);
+    } catch {
+      setLetterError(
+        "オリジナル会葬礼状の再生成に失敗しました。現在の本文はそのまま編集できます。",
+      );
+    } finally {
+      setLetterLoading(false);
+    }
+  }, [form, originalLetter]);
+
+  const handleCopy = useCallback(async () => {
+    const blocks = [
+      sectionsToPlainText(sections, {
+        ceremonyType: form.ceremonyType,
+        deceasedName: form.deceasedName,
+      }),
+    ];
+    if (form.hasOriginalCondolenceLetter && originalLetter) {
+      blocks.push(originalLetterToPrintText(form, originalLetter));
+    }
+    const text = blocks.join("\n\n────────────────\n\n");
+    try {
+      await writeClipboardText(text);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       // 本文には個人情報が含まれ得るため、内容はログ出力しない
       setCopied(false);
     }
-  }, [sections, form.ceremonyType, form.deceasedName]);
+  }, [sections, form, originalLetter]);
+
+  const handleCopyLetter = useCallback(async () => {
+    if (!originalLetter) return;
+    try {
+      await writeClipboardText(originalLetterToPrintText(form, originalLetter));
+      setLetterCopied(true);
+      window.setTimeout(() => setLetterCopied(false), 2000);
+    } catch {
+      setLetterCopied(false);
+    }
+  }, [form, originalLetter]);
 
   const handlePrint = useCallback(() => {
     window.print();
@@ -311,6 +429,17 @@ export default function FuneralScriptPage() {
                 セクション（本文は直接編集できます）
               </p>
             )}
+            <FuneralScriptOriginalLetterPanel
+              form={form}
+              letter={originalLetter}
+              loading={letterLoading}
+              error={letterError}
+              warnings={letterWarnings}
+              copied={letterCopied}
+              onEditBody={handleEditLetterBody}
+              onRegenerate={handleGenerateLetter}
+              onCopy={handleCopyLetter}
+            />
             <FuneralScriptPreview
               sections={sections}
               printSize={form.printSize}
@@ -324,9 +453,11 @@ export default function FuneralScriptPage() {
       <div className="fs-print-root">
         <FuneralScriptPrintView
           sections={sections}
+          form={form}
           ceremonyType={form.ceremonyType}
           deceasedName={form.deceasedName}
           printSize={form.printSize}
+          originalLetter={originalLetter}
         />
       </div>
     </main>

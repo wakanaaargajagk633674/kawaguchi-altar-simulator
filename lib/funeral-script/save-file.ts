@@ -13,6 +13,7 @@ import {
 } from "./types";
 import type {
   FuneralScriptFormData,
+  FuneralScriptOriginalLetter,
   FuneralScriptSavedFile,
   FuneralScriptSection,
 } from "./types";
@@ -44,6 +45,7 @@ export function serializeSavedFile(
   form: FuneralScriptFormData,
   sections: FuneralScriptSection[],
   now: Date,
+  originalLetter?: FuneralScriptOriginalLetter | null,
 ): string {
   const payload: FuneralScriptSavedFile = {
     kind: FUNERAL_SCRIPT_FILE_KIND,
@@ -51,6 +53,7 @@ export function serializeSavedFile(
     savedAt: now.toISOString(),
     form,
     sections,
+    originalLetter: originalLetter ?? null,
   };
   return JSON.stringify(payload, null, 2);
 }
@@ -96,6 +99,10 @@ export function parseSavedFile(text: string): ParseSavedFileResult {
       savedAt: typeof obj.savedAt === "string" ? obj.savedAt : "",
       form: obj.form as FuneralScriptFormData,
       sections: obj.sections as FuneralScriptSection[],
+      originalLetter:
+        "originalLetter" in obj
+          ? (obj.originalLetter as FuneralScriptOriginalLetter | null)
+          : null,
     },
   };
 }
