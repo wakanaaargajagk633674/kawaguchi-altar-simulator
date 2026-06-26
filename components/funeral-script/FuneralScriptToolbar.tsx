@@ -8,9 +8,10 @@ type FuneralScriptToolbarProps = {
   printSize: FuneralScriptPrintSize;
   onPrintSizeChange: (size: FuneralScriptPrintSize) => void;
   onCopy: () => void;
-  onPrint: () => void;
+  onCreatePdf: () => void;
   copied: boolean;
   disabled: boolean;
+  pdfLoading?: boolean;
 };
 
 /**
@@ -20,9 +21,10 @@ export default function FuneralScriptToolbar({
   printSize,
   onPrintSizeChange,
   onCopy,
-  onPrint,
+  onCreatePdf,
   copied,
   disabled,
+  pdfLoading = false,
 }: FuneralScriptToolbarProps) {
   return (
     <div className="grid gap-3 rounded-lg border border-stone-200 bg-white p-3 shadow-sm sm:flex sm:flex-wrap sm:items-center">
@@ -60,11 +62,11 @@ export default function FuneralScriptToolbar({
         </button>
         <button
           type="button"
-          onClick={onPrint}
-          disabled={disabled}
+          onClick={onCreatePdf}
+          disabled={disabled || pdfLoading}
           className="min-h-11 rounded-md bg-slate-800 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          印刷 / PDF
+          {pdfLoading ? "PDF作成中..." : "PDFを作成"}
         </button>
       </div>
     </div>

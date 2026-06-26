@@ -1,5 +1,6 @@
 import { toneStyleInstructions } from "./style-guide";
 import { ORIGINAL_LETTER_ID } from "./original-letter";
+import { buildOriginalLetterSkillPrompt } from "./original-letter-skill";
 import type {
   FuneralScriptFormData,
   FuneralScriptOriginalLetter,
@@ -29,9 +30,13 @@ function formLines(form: FuneralScriptFormData): string[] {
     line("人柄", form.personality),
     line("喪主名", form.letterSenderName || form.chiefMournerName),
     line("礼状の続柄表記", form.letterDeceasedRelationLabel),
+    line("礼状の見出し・タイトル案", form.letterTitle),
+    line("必ず伝えたいこと", form.letterMainMessage),
+    line("口癖・好きだった言葉", form.letterMemorableWords),
     line("礼状日付", form.letterDate),
     line("差出人住所", form.letterSenderAddress),
     line("喪主・家族からの修正指示", form.letterFamilyInstructions),
+    line("印刷会社への申し送り", form.letterPrintInstructions),
   ].filter(Boolean) as string[];
 }
 
@@ -54,6 +59,8 @@ export function buildOriginalLetterPrompt(params: {
     "会葬者へ渡す「オリジナル会葬礼状」の本文だけを作成してください。",
     "本文はアプリ側で差出人・日付・住所と組み合わせて印刷会社へ渡します。本文内に日付・住所・喪主名・親族一同は入れないでください。",
     "",
+    buildOriginalLetterSkillPrompt(),
+    "",
     "# 入力情報",
     info.length > 0 ? info.join("\n") : "- 入力情報は少なめです",
     "",
@@ -65,15 +72,17 @@ export function buildOriginalLetterPrompt(params: {
     "# 文体",
     `- ${toneStyleInstructions[form.tone]}`,
     "- 葬儀司会ナレーションよりも、紙面で読まれる礼状として簡潔で整った文にする",
-    "- 形式的な礼状に終わらせず、入力にある範囲で故人らしさ・家族の感謝を一、二文入れる",
+    "- 形式的な礼状に終わらせず、入力にある範囲で故人らしさ・家族の感謝を中心にする",
     "- 司会者目線ではなく、喪主・親族側からの礼状として書く",
+    "- 『ご家族より伺いました』『だそうです』などの第三者表現は使わない",
     "",
     "# 会葬礼状の構成",
-    `- 冒頭は「${subject} 葬儀に際しまして」などから始める`,
-    "- 会葬・弔意への感謝を述べる",
-    "- 故人の人柄・歩み・趣味・家族との思い出のうち、入力にある事実だけを自然に入れる",
-    "- 生前の厚情への感謝を述べる",
-    "- 本来なら直接御礼すべきところ、書中での御礼となる旨で結ぶ",
+    "- 一行目は短い見出しまたは故人への呼びかけにする。入力に見出し案があれば優先する",
+    `- 二行目以降に「${subject} 葬儀に際しまして」などの礼文を入れる`,
+    "- 会葬・弔意への感謝を端正に述べる",
+    "- 中盤は家族目線で、故人の人柄・趣味・家族との思い出から一場面を描く",
+    "- 必ず伝えたいこと、口癖・好きだった言葉、喪主の修正指示があれば優先して反映する",
+    "- 終盤は生前の厚情への感謝、家族が故人の面影を大切にする一文、書中での御礼で結ぶ",
     "",
     "# 厳守ルール",
     "- 入力にない事実、職業、続柄、場所、病名、年齢、宗教表現を創作しない",
@@ -82,7 +91,8 @@ export function buildOriginalLetterPrompt(params: {
     "- 時候の挨拶は入れない",
     "- 頭語・結語（拝啓・敬具）は原則入れない。入れる場合は必ず対にするが、この出力では入れない",
     "- 忌み言葉・重ね言葉を避ける（ますます、重ね重ね、たびたび、再び、また、なお、くれぐれも、死亡、死ぬ、去る、終える、消える、迷う、涙、忙しい等）",
-    "- 目安は本文380〜520字。情報が少ない場合は無理に長くしない",
+    "- 履歴書や略歴のように、生年月日・職歴・趣味を順番に並べない",
+    "- 目安は見出し込み450〜760字。情報が少ない場合は創作で埋めず、380字程度まで短くしてよい",
     "",
     "# 出力形式（厳守）",
     "- 必ず次の JSON オブジェクトのみを出力する（前後に説明文やコードフェンスを付けない）。",

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FuneralScriptForm from "@/components/funeral-script/FuneralScriptForm";
 import FuneralScriptFileControls from "@/components/funeral-script/FuneralScriptFileControls";
 import FuneralScriptAiControls from "@/components/funeral-script/FuneralScriptAiControls";
@@ -10,6 +10,7 @@ import FuneralScriptPreview from "@/components/funeral-script/FuneralScriptPrevi
 import FuneralScriptPrintView from "@/components/funeral-script/FuneralScriptPrintView";
 import FuneralScriptToolbar from "@/components/funeral-script/FuneralScriptToolbar";
 import { cn } from "@/lib/simulatorUtils";
+import { createPdfBlobFromElement, downloadPdfBlob } from "@/lib/pdf";
 import { generateFuneralScript } from "@/lib/funeral-script/generator";
 import {
   buildOriginalCondolenceLetter,
@@ -41,10 +42,22 @@ type WorkspaceView = "form" | "script" | "letter";
 // 印刷用CSS（共有 globals.css は変更せず、本ページ内に閉じる）
 const PRINT_CSS = `
 .fs-print-root { display: none; }
+.fs-pdf-root {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 794px;
+  min-height: 1123px;
+  overflow: visible;
+  background: #ffffff;
+  color: #0f172a;
+  pointer-events: none;
+}
 @page { size: A4; margin: 16mm 14mm; }
 @media print {
   html, body { background: #ffffff !important; }
   .no-print { display: none !important; }
+  .fs-pdf-root { display: none !important; }
   .fs-print-root { display: block !important; }
   .fs-print-root { width: auto; margin: 0; padding: 0; }
   .fs-heading { break-after: avoid; page-break-after: avoid; }
@@ -53,6 +66,19 @@ const PRINT_CSS = `
   .fs-letter-page { break-before: page; page-break-before: always; }
 }
 `;
+
+function safeFileNamePart(value: string): string {
+  return value
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, "_")
+    .slice(0, 40);
+}
+
+function buildScriptPdfFileName(form: FuneralScriptFormData): string {
+  const name = safeFileNamePart(form.deceasedName || "未入力");
+  return `葬儀司会台本_${name}.pdf`;
+}
 
 async function writeClipboardText(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -70,6 +96,7 @@ async function writeClipboardText(text: string): Promise<void> {
 }
 
 export default function FuneralScriptPage() {
+  const pdfRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState<FuneralScriptFormData>(() =>
     defaultFormData("buddhist_funeral"),
   );
@@ -91,10 +118,22 @@ export default function FuneralScriptPage() {
   const [letterLoading, setLetterLoading] = useState(false);
   const [letterError, setLetterError] = useState<string | null>(null);
   const [letterWarnings, setLetterWarnings] = useState<string[]>([]);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState("葬儀司会台本.pdf");
+
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    };
+  }, [pdfUrl]);
 
   const handleChange = useCallback(
     (patch: Partial<FuneralScriptFormData>) => {
       setForm((prev) => ({ ...prev, ...patch }));
+      setPdfError(null);
+      setPdfUrl(null);
       if (patch.hasOriginalCondolenceLetter === false) {
         setLetterError(null);
         setLetterWarnings([]);
@@ -144,6 +183,8 @@ export default function FuneralScriptPage() {
     setPreAiSections(null);
     setAiError(null);
     setAiWarnings([]);
+    setPdfError(null);
+    setPdfUrl(null);
     setActiveView("script");
   }, [form]);
 
@@ -266,6 +307,8 @@ export default function FuneralScriptPage() {
       setLetterWarnings([]);
       setCopied(false);
       setLetterCopied(false);
+      setPdfError(null);
+      setPdfUrl(null);
       setActiveView(loadedSections.length > 0 ? "script" : "form");
     },
     [],
@@ -277,6 +320,8 @@ export default function FuneralScriptPage() {
         section.id === id ? { ...section, body } : section,
       ),
     );
+    setPdfError(null);
+    setPdfUrl(null);
   }, []);
 
   const handleEditLetterBody = useCallback((body: string) => {
@@ -290,6 +335,8 @@ export default function FuneralScriptPage() {
         : prev,
     );
     setLetterCopied(false);
+    setPdfError(null);
+    setPdfUrl(null);
   }, []);
 
   const handleGenerateLetter = useCallback(async () => {
@@ -361,9 +408,26 @@ export default function FuneralScriptPage() {
     }
   }, [form, originalLetter]);
 
-  const handlePrint = useCallback(() => {
-    window.print();
-  }, []);
+  const handleCreatePdf = useCallback(async () => {
+    if (sections.length === 0 || !pdfRef.current || pdfLoading) return;
+
+    const filename = buildScriptPdfFileName(form);
+    setPdfFileName(filename);
+    setPdfLoading(true);
+    setPdfError(null);
+
+    try {
+      const blob = await createPdfBlobFromElement(pdfRef.current);
+      const url = downloadPdfBlob(blob, filename);
+      setPdfUrl(url);
+    } catch {
+      setPdfError(
+        "PDF作成に失敗しました。本文をコピーして印刷会社へ渡すか、時間をおいて再度お試しください。",
+      );
+    } finally {
+      setPdfLoading(false);
+    }
+  }, [form, pdfLoading, sections.length]);
 
   const hasScript = sections.length > 0;
   const hasLetter = form.hasOriginalCondolenceLetter;
@@ -510,10 +574,39 @@ export default function FuneralScriptPage() {
                 printSize={form.printSize}
                 onPrintSizeChange={(printSize) => handleChange({ printSize })}
                 onCopy={handleCopy}
-                onPrint={handlePrint}
+                onCreatePdf={handleCreatePdf}
                 copied={copied}
                 disabled={!hasScript}
+                pdfLoading={pdfLoading}
               />
+              {(pdfLoading || pdfError || pdfUrl) && (
+                <div
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-xs leading-5",
+                    pdfError
+                      ? "border-rose-200 bg-rose-50 text-rose-700"
+                      : "border-emerald-200 bg-emerald-50 text-slate-700",
+                  )}
+                >
+                  {pdfLoading && "PDFを作成しています。長い台本は少し時間がかかります。"}
+                  {pdfError && pdfError}
+                  {pdfUrl && !pdfLoading && !pdfError && (
+                    <span>
+                      PDFを作成しました。iPhoneで保存画面が出ない場合は{" "}
+                      <a
+                        href={pdfUrl}
+                        download={pdfFileName}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-emerald-800 underline underline-offset-2"
+                      >
+                        PDFを開く
+                      </a>
+                      から共有・保存してください。
+                    </span>
+                  )}
+                </div>
+              )}
               {hasScript && (
                 <p className="text-xs text-slate-500">
                   {CEREMONY_TYPE_LABELS[form.ceremonyType]} ／ 全{" "}
@@ -559,22 +652,47 @@ export default function FuneralScriptPage() {
               台本を生成して確認へ
             </button>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveView("form")}
-                className="min-h-12 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
-              >
-                入力を直す
-              </button>
-              <button
-                type="button"
-                onClick={handlePrint}
-                disabled={!hasScript}
-                className="min-h-12 rounded-md bg-slate-800 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                印刷 / PDF
-              </button>
+            <div className="grid gap-2">
+              {(pdfError || pdfUrl) && (
+                <div
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-xs leading-5",
+                    pdfError
+                      ? "border-rose-200 bg-rose-50 text-rose-700"
+                      : "border-emerald-200 bg-emerald-50 text-slate-700",
+                  )}
+                >
+                  {pdfError}
+                  {pdfUrl && !pdfError && (
+                    <a
+                      href={pdfUrl}
+                      download={pdfFileName}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-emerald-800 underline underline-offset-2"
+                    >
+                      作成済みPDFを開く
+                    </a>
+                  )}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveView("form")}
+                  className="min-h-12 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                >
+                  入力を直す
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreatePdf}
+                  disabled={!hasScript || pdfLoading}
+                  className="min-h-12 rounded-md bg-slate-800 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {pdfLoading ? "PDF作成中..." : "PDFを作成"}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -582,6 +700,16 @@ export default function FuneralScriptPage() {
 
       {/* 印刷専用ビュー（画面では非表示、印刷時のみ表示） */}
       <div className="fs-print-root">
+        <FuneralScriptPrintView
+          sections={sections}
+          form={form}
+          ceremonyType={form.ceremonyType}
+          deceasedName={form.deceasedName}
+          printSize={form.printSize}
+          originalLetter={originalLetter}
+        />
+      </div>
+      <div ref={pdfRef} className="fs-pdf-root" aria-hidden="true">
         <FuneralScriptPrintView
           sections={sections}
           form={form}

@@ -115,6 +115,9 @@ export type FuneralScriptFormData = {
   letterSenderAddress?: string;
   letterSenderName?: string;
   letterDeceasedRelationLabel?: string; // 例: 亡父 / 亡母 / 故
+  letterTitle?: string; // 見出し・タイトル案
+  letterMainMessage?: string; // 必ず伝えたいこと
+  letterMemorableWords?: string; // 口癖・好きだった言葉
   letterFamilyInstructions?: string; // 喪主・ご家族からの修正指示
   letterPrintInstructions?: string; // 印刷会社への申し送り
 

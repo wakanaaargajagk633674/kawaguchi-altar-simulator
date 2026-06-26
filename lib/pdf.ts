@@ -80,14 +80,58 @@ function fitImageToPage(
   };
 }
 
-export async function createPdfFromElement(
-  element: HTMLElement,
-  filename: string,
+function addSlicedCanvasToPdf(
+  pdf: import("jspdf").jsPDF,
+  canvas: HTMLCanvasElement,
+  pageWidth: number,
+  pageHeight: number,
 ) {
+  const sliceHeight = Math.max(
+    1,
+    Math.floor(canvas.width * (pageHeight / pageWidth)),
+  );
+  const sliceCanvas = document.createElement("canvas");
+  sliceCanvas.width = canvas.width;
+  const context = sliceCanvas.getContext("2d");
+  if (!context) {
+    throw new Error("Could not create PDF canvas context.");
+  }
+
+  for (let y = 0; y < canvas.height; y += sliceHeight) {
+    const currentSliceHeight = Math.min(sliceHeight, canvas.height - y);
+    sliceCanvas.height = currentSliceHeight;
+    context.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+    context.drawImage(
+      canvas,
+      0,
+      y,
+      canvas.width,
+      currentSliceHeight,
+      0,
+      0,
+      canvas.width,
+      currentSliceHeight,
+    );
+
+    if (y > 0) {
+      pdf.addPage();
+    }
+
+    const imageData = sliceCanvas.toDataURL("image/jpeg", 0.95);
+    const drawHeight = Math.min(
+      pageHeight,
+      (currentSliceHeight / canvas.width) * pageWidth,
+    );
+    pdf.addImage(imageData, "JPEG", 0, 0, pageWidth, drawHeight);
+  }
+}
+
+export async function createPdfBlobFromElement(element: HTMLElement) {
   const pageElements = Array.from(
     element.querySelectorAll<HTMLElement>(".pdf-page"),
   );
   const pages = pageElements.length > 0 ? pageElements : [element];
+  const shouldSliceLongPage = pageElements.length === 0;
 
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas"),
@@ -137,8 +181,13 @@ export async function createPdfFromElement(
       },
     });
 
-    if (pageIndex > 0) {
+    if (!shouldSliceLongPage && pageIndex > 0) {
       pdf.addPage();
+    }
+
+    if (shouldSliceLongPage) {
+      addSlicedCanvasToPdf(pdf, canvas, pageWidth, pageHeight);
+      continue;
     }
 
     const imageData = canvas.toDataURL("image/jpeg", 0.95);
@@ -159,5 +208,26 @@ export async function createPdfFromElement(
     );
   }
 
-  pdf.save(filename);
+  return pdf.output("blob");
+}
+
+export function downloadPdfBlob(blob: Blob, filename: string): string {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  return url;
+}
+
+export async function createPdfFromElement(
+  element: HTMLElement,
+  filename: string,
+) {
+  const blob = await createPdfBlobFromElement(element);
+  const url = downloadPdfBlob(blob, filename);
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

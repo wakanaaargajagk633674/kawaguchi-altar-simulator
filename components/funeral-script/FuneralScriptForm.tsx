@@ -377,6 +377,30 @@ export default function FuneralScriptForm({
               placeholder="空欄なら喪主名を使用"
             />
             <div className="sm:col-span-2">
+              <TextField
+                label="礼状の見出し・タイトル案"
+                value={form.letterTitle}
+                onChange={(v) => onChange({ letterTitle: v })}
+                placeholder="例：ありがとう　いつも家族を見守ってくれた父へ"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <TextAreaField
+                label="必ず伝えたいこと"
+                value={form.letterMainMessage}
+                onChange={(v) => onChange({ letterMainMessage: v })}
+                placeholder="例：家族のために休まず働いてくれたことへの感謝を中心にしたい"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <TextAreaField
+                label="口癖・好きだった言葉・印象的な一言"
+                value={form.letterMemorableWords}
+                onChange={(v) => onChange({ letterMemorableWords: v })}
+                placeholder="例：大丈夫だよ / ありがとう / 家族が一番"
+              />
+            </div>
+            <div className="sm:col-span-2">
               <TextAreaField
                 label="喪主・ご家族からの修正指示"
                 value={form.letterFamilyInstructions}

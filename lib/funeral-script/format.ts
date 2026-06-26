@@ -153,6 +153,9 @@ export function defaultFormData(
     letterSenderAddress: "",
     letterSenderName: "",
     letterDeceasedRelationLabel: "",
+    letterTitle: "",
+    letterMainMessage: "",
+    letterMemorableWords: "",
     letterFamilyInstructions: "",
     letterPrintInstructions: "",
 
