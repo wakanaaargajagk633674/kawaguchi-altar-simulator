@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/simulatorUtils";
 import {
   CEREMONY_TYPE_LABELS,
@@ -26,10 +27,10 @@ type FuneralScriptFormProps = {
 };
 
 const cardClass =
-  "rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5";
+  "overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm";
 const labelClass = "block text-sm font-medium text-slate-700";
 const inputClass =
-  "mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500";
+  "mt-1 min-h-11 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-base text-slate-900 shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 sm:text-sm";
 
 function TextField({
   label,
@@ -76,7 +77,7 @@ function TextAreaField({
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        rows={2}
+        rows={3}
         className={cn(inputClass, "resize-y")}
       />
     </label>
@@ -93,7 +94,7 @@ function ToggleField({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2">
+    <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2">
       <input
         type="checkbox"
         checked={checked}
@@ -105,9 +106,44 @@ function ToggleField({
   );
 }
 
-function SectionTitle({ children }: { children: ReactNode }) {
+function FormSection({
+  title,
+  summary,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  summary?: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
   return (
-    <h2 className="mb-3 text-base font-semibold text-slate-950">{children}</h2>
+    <details
+      className={cardClass}
+      open={isOpen}
+      onToggle={(e) => setIsOpen(e.currentTarget.open)}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 outline-none transition hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-amber-500 sm:px-5 [&::-webkit-details-marker]:hidden">
+        <span>
+          <span className="block text-base font-semibold text-slate-950">
+            {title}
+          </span>
+          {summary && (
+            <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+              {summary}
+            </span>
+          )}
+        </span>
+        <span className="shrink-0 rounded-full border border-stone-300 px-2 py-1 text-xs font-semibold text-slate-600">
+          開閉
+        </span>
+      </summary>
+      <div className="border-t border-stone-100 px-4 py-4 sm:px-5">
+        {children}
+      </div>
+    </details>
   );
 }
 
@@ -124,8 +160,11 @@ export default function FuneralScriptForm({
   return (
     <div className="grid gap-4">
       {/* 基本情報 */}
-      <section className={cardClass}>
-        <SectionTitle>基本情報</SectionTitle>
+      <FormSection
+        title="基本情報"
+        summary="式種別、故人名、日時など台本の土台になる項目です。"
+        defaultOpen
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block sm:col-span-2">
             <span className={labelClass}>式種別</span>
@@ -192,11 +231,13 @@ export default function FuneralScriptForm({
             placeholder="例：午前10時"
           />
         </div>
-      </section>
+      </FormSection>
 
       {/* 喪主・関係者 */}
-      <section className={cardClass}>
-        <SectionTitle>喪主・関係者</SectionTitle>
+      <FormSection
+        title="喪主・関係者"
+        summary="焼香順や開式の辞に使う名前を確認します。"
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField
             label="喪主名"
@@ -232,14 +273,14 @@ export default function FuneralScriptForm({
             無宗教式のため、寺院・導師の欄は使用しません。
           </p>
         )}
-      </section>
+      </FormSection>
 
       {/* 故人情報（AI生成の素材） */}
-      <section className={cardClass}>
-        <SectionTitle>故人情報（ナレーションの素材）</SectionTitle>
-        <p className="mb-3 text-xs text-slate-500">
-          ここで入力した内容は、次フェーズのAIナレーション生成の素材になります。現状は仮文として一部反映されます。
-        </p>
+      <FormSection
+        title="取材メモ"
+        summary="ナレーションと礼状の精度に直結します。短い箇条書きでも使えます。"
+        defaultOpen
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField
             label="趣味"
@@ -297,11 +338,13 @@ export default function FuneralScriptForm({
             onChange={(v) => onChange({ familyStructure: v })}
           />
         </div>
-      </section>
+      </FormSection>
 
       {/* オリジナル会葬礼状 */}
-      <section className={cardClass}>
-        <SectionTitle>オリジナル会葬礼状</SectionTitle>
+      <FormSection
+        title="オリジナル会葬礼状"
+        summary="必要な案件だけオンにします。本文は生成後に礼状画面で編集できます。"
+      >
         <ToggleField
           label="オリジナル会葬礼状を作成する"
           checked={form.hasOriginalCondolenceLetter}
@@ -354,16 +397,14 @@ export default function FuneralScriptForm({
             </p>
           </div>
         )}
-      </section>
+      </FormSection>
 
       {/* 通夜の引き継ぎ（告別式で通夜に言及する素材） */}
       {hasFuneralDay && (
-        <section className={cardClass}>
-          <SectionTitle>通夜の引き継ぎ（任意）</SectionTitle>
-          <p className="mb-3 text-xs text-slate-500">
-            前日の通夜の様子を入れると、告別式の冒頭ナレーションで「通夜には〜、これも故人さんが歩んでこられた〜」のように通夜に触れて生成します。
-            <strong>空欄なら通夜には言及せず、通常の告別式ナレーション</strong>になります。
-          </p>
+        <FormSection
+          title="通夜の引き継ぎ"
+          summary="告別式で通夜の様子に触れる場合だけ入力します。"
+        >
           <div className="grid gap-3">
             <label className="block">
               <span className={labelClass}>通夜の会葬者の様子</span>
@@ -395,12 +436,14 @@ export default function FuneralScriptForm({
               placeholder="例：弔問の列が途切れず、町内の皆様が多く参列された"
             />
           </div>
-        </section>
+        </FormSection>
       )}
 
       {/* 進行オプション */}
-      <section className={cardClass}>
-        <SectionTitle>進行オプション</SectionTitle>
+      <FormSection
+        title="進行オプション"
+        summary="弔電、喪主挨拶、出棺案内など式次第を選びます。"
+      >
         <div className="grid gap-2 sm:grid-cols-2">
           <ToggleField
             label="弔辞"
@@ -469,11 +512,13 @@ export default function FuneralScriptForm({
             お供えは選択したものを「献花 → 献灯 → 焼香」の順にご案内します（既定は 献灯 → 焼香）。
           </p>
         )}
-      </section>
+      </FormSection>
 
       {/* 台本設定 */}
-      <section className={cardClass}>
-        <SectionTitle>台本設定</SectionTitle>
+      <FormSection
+        title="台本設定"
+        summary="文体、長さ、印刷時の文字サイズを調整します。"
+      >
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
             <span className={labelClass}>文体</span>
@@ -530,12 +575,12 @@ export default function FuneralScriptForm({
             </select>
           </label>
         </div>
-      </section>
+      </FormSection>
 
       <button
         type="button"
         onClick={onGenerate}
-        className="rounded-md bg-amber-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2"
+        className="min-h-12 rounded-md bg-amber-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2"
       >
         台本を生成する
       </button>

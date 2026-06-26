@@ -52,8 +52,8 @@ export default function FuneralScriptOriginalLetterPanel({
   const charCount = originalLetterCharCount(letter.body);
 
   return (
-    <section className="rounded-lg border border-slate-300 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-start gap-2">
+    <section className="rounded-lg border border-slate-300 bg-white p-3 shadow-sm sm:p-5">
+      <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-start">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-semibold text-slate-950">
@@ -73,13 +73,13 @@ export default function FuneralScriptOriginalLetterPanel({
           </p>
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="grid gap-2 sm:ml-auto sm:flex sm:flex-wrap sm:items-center">
           <button
             type="button"
             onClick={onRegenerate}
             disabled={loading}
             className={cn(
-              "rounded-md bg-slate-800 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-900",
+              "min-h-11 rounded-md bg-slate-800 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-900",
               "focus:outline-none focus:ring-2 focus:ring-slate-700 focus:ring-offset-2",
               "disabled:cursor-not-allowed disabled:opacity-60",
             )}
@@ -90,7 +90,7 @@ export default function FuneralScriptOriginalLetterPanel({
             type="button"
             onClick={onCopy}
             disabled={loading}
-            className="rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-11 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {copied ? "コピーしました" : "提出用テキストをコピー"}
           </button>
@@ -123,8 +123,8 @@ export default function FuneralScriptOriginalLetterPanel({
             <textarea
               value={letter.body}
               onChange={(e) => onEditBody(e.target.value)}
-              rows={Math.max(9, letter.body.split("\n").length + 2)}
-              className="mt-1 w-full resize-y rounded-md border border-stone-300 bg-white px-3 py-2 text-sm leading-7 text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+              rows={Math.min(14, Math.max(9, letter.body.split("\n").length + 2))}
+              className="mt-1 min-h-64 w-full resize-y rounded-md border border-stone-300 bg-white px-3 py-2 text-base leading-7 text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 sm:text-sm"
             />
           </label>
 
@@ -144,9 +144,9 @@ export default function FuneralScriptOriginalLetterPanel({
           </div>
         </div>
 
-        <div className="min-h-[360px] border border-stone-300 bg-[#fbfaf7] p-4">
+        <div className="min-h-[300px] border border-stone-300 bg-[#fbfaf7] p-4 sm:min-h-[360px]">
           <div
-            className="mx-auto h-[330px] max-w-full overflow-hidden text-sm leading-7 text-slate-900"
+            className="mx-auto h-[280px] max-w-full overflow-hidden text-sm leading-7 text-slate-900 sm:h-[330px]"
             style={{
               writingMode: "vertical-rl",
               textOrientation: "mixed",

@@ -28,7 +28,7 @@ export default function FuneralScriptPreview({
   if (sections.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-slate-500">
-        左のフォームを入力し、「台本を生成する」を押すと、ここに台本が表示されます。
+        入力画面で「台本を生成する」を押すと、ここに編集可能な台本が表示されます。
       </div>
     );
   }
@@ -66,7 +66,7 @@ export default function FuneralScriptPreview({
           <article
             key={section.id}
             className={cn(
-              "rounded-lg border p-4 shadow-sm sm:p-5",
+              "rounded-lg border p-3 shadow-sm sm:p-5",
               isGenerated
                 ? "border-emerald-300 bg-emerald-50/50"
                 : isAiSlot
@@ -74,7 +74,7 @@ export default function FuneralScriptPreview({
                   : "border-stone-200 bg-white",
             )}
           >
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-3 grid gap-2 sm:flex sm:items-center">
               <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-800 px-2 text-xs font-semibold text-white">
                 {stepNumbers[index]}
               </span>
@@ -97,9 +97,9 @@ export default function FuneralScriptPreview({
             <textarea
               value={section.body}
               onChange={(e) => onEditBody(section.id, e.target.value)}
-              rows={Math.max(2, section.body.split("\n").length)}
+              rows={Math.min(12, Math.max(4, section.body.split("\n").length))}
               className={cn(
-                "w-full resize-y rounded-md border border-stone-200 bg-white px-3 py-2 text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500",
+                "min-h-32 w-full resize-y rounded-md border border-stone-200 bg-white px-3 py-2 text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500",
                 printBodyTextClass(printSize),
               )}
             />

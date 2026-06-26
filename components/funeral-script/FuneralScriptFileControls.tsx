@@ -24,7 +24,7 @@ type FuneralScriptFileControlsProps = {
 const cardClass =
   "rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5";
 const btnClass =
-  "rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-50";
+  "min-h-11 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function FuneralScriptFileControls({
   canSave,
@@ -82,7 +82,7 @@ export default function FuneralScriptFileControls({
       <p className="mb-3 text-xs leading-5 text-slate-500">
         通夜の台本をファイルに保存し、翌日に読み込むと告別式台本へ引き継げます（サーバー保存はしません）。
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-2 sm:flex sm:flex-wrap">
         <button
           type="button"
           onClick={onSave}

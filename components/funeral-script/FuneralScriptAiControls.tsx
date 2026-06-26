@@ -53,13 +53,13 @@ export default function FuneralScriptAiControls({
         ※ AI生成すると、現在のナレーション本文（{targetCount}件）は置き換わります。
       </p>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap sm:items-center">
         <button
           type="button"
           onClick={onGenerate}
           disabled={loading}
           className={cn(
-            "rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700",
+            "min-h-11 rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700",
             "focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2",
             "disabled:cursor-not-allowed disabled:opacity-60",
           )}
@@ -70,7 +70,7 @@ export default function FuneralScriptAiControls({
           type="button"
           onClick={onRevert}
           disabled={loading || !canRevert}
-          className="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-11 rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           AI生成前に戻す
         </button>
