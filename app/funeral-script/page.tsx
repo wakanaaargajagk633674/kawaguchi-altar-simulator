@@ -908,11 +908,9 @@ export default function FuneralScriptPage() {
                   "lg:block",
                 )}
               >
-                {hasLetter && (
-                  <p className="mb-2 hidden text-xs font-semibold text-slate-600 xl:block">
-                    葬儀司会台本（プレビュー）
-                  </p>
-                )}
+                <p className="mb-2 hidden text-center text-sm font-semibold text-slate-700 lg:block">
+                  葬儀司会台本（プレビュー）
+                </p>
                 <FuneralScriptPreview
                   sections={sections}
                   printSize={form.printSize}
@@ -928,7 +926,7 @@ export default function FuneralScriptPage() {
                     "lg:block",
                   )}
                 >
-                  <p className="mb-2 hidden text-xs font-semibold text-slate-600 xl:block">
+                  <p className="mb-2 hidden text-center text-sm font-semibold text-slate-700 lg:block">
                     オリジナル会葬礼状（プレビュー）
                   </p>
                   <FuneralScriptOriginalLetterPanel

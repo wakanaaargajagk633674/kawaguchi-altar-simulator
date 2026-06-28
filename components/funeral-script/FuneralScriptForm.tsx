@@ -127,14 +127,14 @@ function ToggleField({
 
 function FormSection({
   id,
-  step,
+  icon,
   title,
   summary,
   children,
   defaultOpen = true,
 }: {
   id?: string;
-  step?: number;
+  icon?: string;
   title: string;
   summary?: string;
   children: ReactNode;
@@ -151,9 +151,9 @@ function FormSection({
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 outline-none transition hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-amber-500 sm:px-5 [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-3">
-          {step != null && (
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-600 text-xs font-bold text-white">
-              {step}
+          {icon && (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-50 text-base ring-1 ring-amber-200">
+              {icon}
             </span>
           )}
           <span>
@@ -199,7 +199,7 @@ export default function FuneralScriptForm({
       {/* 基本情報 */}
       <FormSection
         id="fs-basic"
-        step={1}
+        icon="👤"
         title="基本情報"
         summary="式種別、故人名、日時など台本の土台になる項目です。"
       >
@@ -274,7 +274,7 @@ export default function FuneralScriptForm({
       {/* 喪主・関係者 */}
       <FormSection
         id="fs-mourner"
-        step={2}
+        icon="👥"
         title="喪主・関係者"
         summary="焼香順や開式の辞に使う名前を確認します。"
       >
@@ -318,7 +318,7 @@ export default function FuneralScriptForm({
       {/* 故人情報（AI生成の素材） */}
       <FormSection
         id="fs-memo"
-        step={3}
+        icon="📝"
         title="取材メモ"
         summary="ナレーションと礼状の精度に直結します。短い箇条書きでも使えます。"
       >
@@ -384,7 +384,7 @@ export default function FuneralScriptForm({
       {/* オリジナル会葬礼状 */}
       <FormSection
         id="fs-letter"
-        step={4}
+        icon="✉️"
         title="オリジナル会葬礼状"
         summary="必要な案件だけオンにします。本文は生成後に礼状画面で編集できます。"
       >
@@ -470,7 +470,7 @@ export default function FuneralScriptForm({
       {hasFuneralDay && (
         <FormSection
           id="fs-wake"
-          step={5}
+          icon="🌙"
           title="通夜の引き継ぎ"
           summary="告別式で通夜の様子に触れる場合だけ入力します。"
         >
@@ -511,7 +511,7 @@ export default function FuneralScriptForm({
       {/* 進行オプション */}
       <FormSection
         id="fs-options"
-        step={6}
+        icon="✅"
         title="進行オプション"
         summary="弔電、喪主挨拶、出棺案内など式次第を選びます。"
       >
@@ -588,7 +588,7 @@ export default function FuneralScriptForm({
       {/* 台本設定 */}
       <FormSection
         id="fs-settings"
-        step={7}
+        icon="⚙️"
         title="台本設定"
         summary="文体、長さ、印刷時の文字サイズを調整します。"
       >
