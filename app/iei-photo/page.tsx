@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import IeiPhotoUploader from "@/components/iei-photo/IeiPhotoUploader";
 import IeiPhotoModeSelector from "@/components/iei-photo/IeiPhotoModeSelector";
 import IeiPhotoBackgroundPanel from "@/components/iei-photo/IeiPhotoBackgroundPanel";
 import IeiPhotoAdjustmentPanel from "@/components/iei-photo/IeiPhotoAdjustmentPanel";
@@ -14,10 +13,33 @@ import IeiPhotoExportButtons from "@/components/iei-photo/IeiPhotoExportButtons"
 import IeiPhotoAiPanel from "@/components/iei-photo/IeiPhotoAiPanel";
 import IeiPhotoAiQualityCheck from "@/components/iei-photo/IeiPhotoAiQualityCheck";
 import IeiPhotoDeAiPanel from "@/components/iei-photo/IeiPhotoDeAiPanel";
+import StudioSidebar, {
+  type StudioNavId,
+} from "@/components/iei-photo/studio/StudioSidebar";
+import StudioCanvas from "@/components/iei-photo/studio/StudioCanvas";
+import StudioCandidates, {
+  type StudioCandidate,
+} from "@/components/iei-photo/studio/StudioCandidates";
 import {
-  IEI_PHOTO_DEFAULT_MODE,
-  IEI_PHOTO_NOTICES,
-} from "@/lib/iei-photo/image-rules";
+  StudioSectionHeading,
+  StudioSlider,
+  StudioToggle,
+  StudioPillGroup,
+  StudioSwatchGroup,
+} from "@/components/iei-photo/studio/StudioUI";
+import {
+  IconCrop,
+  IconImage,
+  IconRedo,
+  IconSave,
+  IconShirt,
+  IconSmile,
+  IconSun,
+  IconUndo,
+  IconUpload,
+  IconExport,
+} from "@/components/iei-photo/studio/StudioIcons";
+import { IEI_PHOTO_DEFAULT_MODE } from "@/lib/iei-photo/image-rules";
 import { IEI_PHOTO_MOCK_STEPS } from "@/lib/iei-photo/mock-job";
 import {
   getAiGenerationProvider,
@@ -32,9 +54,14 @@ import {
 import { IEI_PHOTO_DEFAULT_BACKGROUND } from "@/lib/iei-photo/backgrounds";
 import {
   IEI_PHOTO_DEFAULT_ADJUSTMENTS,
+  IEI_PHOTO_ADJUSTMENT_RANGES,
   applyAutoCorrect,
   type IeiPhotoAdjustmentKey,
 } from "@/lib/iei-photo/adjustments";
+import {
+  IEI_PHOTO_EXPORT_ORDER,
+  IEI_PHOTO_EXPORT_SIZES,
+} from "@/lib/iei-photo/export-sizes";
 import {
   loadImageElement,
   renderBasePhotoCanvas,
@@ -197,6 +224,20 @@ export default function IeiPhotoPage() {
   );
   const [deAiProcessing, setDeAiProcessing] = useState<boolean>(false);
   const [deAiUrl, setDeAiUrl] = useState<string | null>(null);
+
+  // --- スタジオUI（メモリアルフォトサポート）専用の表示状態 ---
+  // サイドバーのアクティブ項目
+  const [activeNav, setActiveNav] = useState<StudioNavId>("adjust");
+  // 「詳細設定（AI・背景・品質）」の開閉
+  const [showDetails, setShowDetails] = useState<boolean>(false);
+  // 顔を中心に配置（ON時は横位置・縦位置を中央へ戻す表示トグル）
+  const [faceCenter, setFaceCenter] = useState<boolean>(true);
+  // 表情の調整（現状は表示のみのスタブ。AI仕上げ接続は今後）
+  const [smile, setSmile] = useState<number>(50);
+  const [eyeBrightness, setEyeBrightness] = useState<number>(40);
+  const [teethAdjust, setTeethAdjust] = useState<boolean>(false);
+  // 服装の調整: フォーマル（AIの服装指定に連動）/ レタッチ強度（脱AIの強度に連動）
+  const [formal, setFormal] = useState<boolean>(false);
 
   // 元画像 File / 読み込み済み元画像 / 切り抜き済み画像 / 基準写真（親データ）
   const fileRef = useRef<File | null>(null);
@@ -875,207 +916,638 @@ export default function IeiPhotoPage() {
   ]);
 
   const canExport = hasBase && !exporting;
+  const controlsDisabled = !imgLoaded;
+
+  // --- スタジオUI: ナビゲーション・スクロール ---
+  const uploadSectionRef = useRef<HTMLDivElement | null>(null);
+  const finishSectionRef = useRef<HTMLDivElement | null>(null);
+  const exportSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const handleNavigate = useCallback(
+    (id: StudioNavId) => {
+      setActiveNav(id);
+      const target =
+        id === "upload"
+          ? uploadSectionRef.current
+          : id === "adjust"
+            ? adjustmentRef.current
+            : id === "finish"
+              ? finishSectionRef.current
+              : id === "preview"
+                ? previewRef.current
+                : id === "export"
+                  ? exportSectionRef.current
+                  : null;
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    [],
+  );
+
+  // 顔を中心に配置: ON で横位置・縦位置を中央へ戻す
+  const handleToggleFaceCenter = useCallback((next: boolean) => {
+    setFaceCenter(next);
+    if (next) {
+      setAdjustments((prev) => ({ ...prev, offsetX: 0, offsetY: 0 }));
+    }
+  }, []);
+
+  // 服装: フォーマル ON で AI の服装指定を「スーツ」に
+  const handleToggleFormal = useCallback((next: boolean) => {
+    setFormal(next);
+    setClothingStyle(next ? "suit" : "none");
+  }, []);
+
+  // レタッチの強さ(0-100) → 脱AI強度
+  const retouchValue =
+    deAiStrength === "light" ? 25 : deAiStrength === "standard" ? 60 : 90;
+  const handleRetouchChange = useCallback((value: number) => {
+    setDeAiStrength(value < 40 ? "light" : value < 75 ? "standard" : "strong");
+  }, []);
+
+  // 背景スウォッチ（モック準拠の4種）。内部は今後組み立てるため type に素直に対応。
+  const bgSwatchOptions: {
+    value: IeiPhotoBackgroundType;
+    label: string;
+    css: string;
+  }[] = [
+    { value: "photo", label: "オリジナル", css: "#e7e5e4" },
+    { value: "white", label: "明るい", css: "#fafafa" },
+    { value: "gradient", label: "ぼかし", css: "linear-gradient(180deg,#e5e7eb,#cbd5e1)" },
+    { value: "light_gray", label: "グレー", css: "#9ca3af" },
+  ];
+
+  // トリミング・構図ピル（実際の出力サイズに対応）
+  const trimOptions = IEI_PHOTO_EXPORT_ORDER.map((kind) => ({
+    value: kind,
+    label: IEI_PHOTO_EXPORT_SIZES[kind].label,
+  }));
+
+  // 仕上がりプレビュー枠の縦横比
+  const previewSize = IEI_PHOTO_EXPORT_SIZES[previewKind];
+  const previewAspect = `${previewSize.pixelGuide.width} / ${previewSize.pixelGuide.height}`;
+  const guidesVisible = previewKind === "base" && showGuides;
+
+  // 補正スライダーは内部 70-130（100=無補正）を ±30 の符号付きで表示
+  const signed = (v: number) => `${v - 100 > 0 ? "+" : ""}${v - 100}`;
+
+  // 仕上げ候補（ワンタップ・プリセット）
+  const candidates: StudioCandidate[] = [
+    {
+      id: "bg-bright",
+      label: "背景：明るい",
+      thumbUrl: outputUrl,
+      active: background.type === "white",
+    },
+    {
+      id: "bg-gray",
+      label: "背景：グレー",
+      thumbUrl: outputUrl,
+      active: background.type === "light_gray",
+    },
+    {
+      id: "bg-blur",
+      label: "背景：ぼかし",
+      thumbUrl: outputUrl,
+      active: background.type === "gradient",
+    },
+    {
+      id: "auto-bright",
+      label: "明るさ補正",
+      thumbUrl: outputUrl,
+      active: autoCorrect,
+    },
+    {
+      id: "compose-close",
+      label: "構図：クローズアップ",
+      thumbUrl: outputUrl,
+      active: adjustments.zoom >= 130,
+    },
+    {
+      id: "wear-formal",
+      label: "服装：フォーマル",
+      thumbUrl: outputUrl,
+      active: formal,
+    },
+    {
+      id: "face-soft",
+      label: "表情：やさしく",
+      thumbUrl: outputUrl,
+      active: smile >= 60,
+    },
+  ];
+
+  const handleToggleCandidate = useCallback(
+    (id: string) => {
+      switch (id) {
+        case "bg-bright":
+          handleBackgroundType(background.type === "white" ? "photo" : "white");
+          break;
+        case "bg-gray":
+          handleBackgroundType(
+            background.type === "light_gray" ? "photo" : "light_gray",
+          );
+          break;
+        case "bg-blur":
+          handleBackgroundType(
+            background.type === "gradient" ? "photo" : "gradient",
+          );
+          break;
+        case "auto-bright":
+          setAutoCorrect((v) => !v);
+          break;
+        case "compose-close":
+          setAdjustments((prev) => ({
+            ...prev,
+            zoom: prev.zoom >= 130 ? 100 : 130,
+          }));
+          break;
+        case "wear-formal":
+          handleToggleFormal(!formal);
+          break;
+        case "face-soft":
+          setSmile((v) => (v >= 60 ? 50 : 70));
+          break;
+        default:
+          break;
+      }
+    },
+    [background.type, formal, handleBackgroundType, handleToggleFormal],
+  );
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
-      <header className="mb-6">
-        <p className="text-sm font-semibold text-amber-700">AI遺影写真</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">
-          AI遺影写真生成
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-slate-700">
-          元写真をもとに、AIを活用して遺影写真用の基準写真を生成します。標準生成では本人らしさを守るため、人物の特徴をできるだけ保持しながら背景・明るさ・構図を整えます。
-        </p>
-      </header>
+    <div className="flex min-h-screen w-full bg-stone-50">
+      <StudioSidebar active={activeNav} onNavigate={handleNavigate} />
 
-      {/* 処理ステップ表示 */}
-      <div className="mb-6">
-        <IeiPhotoStepIndicator currentStep={currentStep} />
-      </div>
-
-      {/* 注意書き */}
-      <section className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 sm:p-5">
-        <p className="text-sm font-semibold text-amber-800">ご利用にあたっての注意</p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">
-          {IEI_PHOTO_NOTICES.map((notice) => (
-            <li key={notice}>{notice}</li>
-          ))}
-        </ul>
-      </section>
-
-      {/* 情報メッセージ */}
-      {info && (
-        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
-          {info}
-        </div>
-      )}
-
-      {/* エラー表示 */}
-      {error && (
-        <div
-          role="alert"
-          className="mb-6 rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm font-semibold text-rose-700"
-        >
-          {error}
-        </div>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-        <div className="grid gap-6">
-          <IeiPhotoUploader
-            previewUrl={previewUrl}
-            fileName={fileName}
-            onSelectFile={handleSelectFile}
-            onClear={handleClear}
-            disabled={isProcessing}
-          />
-          <IeiPhotoModeSelector
-            selectedMode={mode}
-            onSelect={setMode}
-            disabled={isProcessing || aiProcessing}
-          />
-          {/* AIモード専用: 服装選択・AIに全てお任せ・高度AI補正・許可チェック */}
-          {isAiMode && (
-            <IeiPhotoAiPanel
-              mode={mode}
-              clothingStyle={clothingStyle}
-              onChangeClothing={handleChangeClothing}
-              pose={pose}
-              onChangePose={handleChangePose}
-              allowPortrait={allowPortrait}
-              onTogglePortrait={setAllowPortrait}
-              allowAuto={allowAuto}
-              onToggleAuto={setAllowAuto}
-              onAdvanced={handleAdvancedAi}
-              onAuto={handleAuto}
-              aiProcessing={aiProcessing}
-              aiResultMode={aiResultMode}
-              onClearAiResult={handleClearAiResult}
-              disabled={isProcessing || !imgLoaded || !hasBase}
-            />
-          )}
-          {/* 脱AI処理（AI結果があるときのみ） */}
-          {hasAiResult && (
-            <IeiPhotoDeAiPanel
-              strength={deAiStrength}
-              onChangeStrength={handleChangeDeAiStrength}
-              onApply={handleDeAi}
-              onRevert={handleRevertDeAi}
-              appliedStrength={deAiResult}
-              processing={deAiProcessing}
-              disabled={isProcessing || aiProcessing}
-            />
-          )}
-          <IeiPhotoBackgroundPanel
-            settings={background}
-            onChangeType={handleBackgroundType}
-            onChangeGender={handleBackgroundGender}
-            onRemoveBackground={handleRemoveBackground}
-            removing={removingBg}
-            hasCutout={hasCutout}
-            disabled={isProcessing || !imgLoaded}
-          />
-
-          {/* AI生成ボタン */}
-          <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* 上部バー */}
+        <header className="flex items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-3 sm:px-6">
+          <h1 className="truncate text-lg font-bold text-slate-800 sm:text-xl">
+            メモリアルフォトサポート
+          </h1>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleStart}
-              disabled={!previewUrl || isProcessing || aiProcessing}
-              className="w-full rounded-lg bg-amber-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={handleResetAdjustments}
+              disabled={controlsDisabled}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-stone-100 disabled:opacity-40"
             >
-              {isProcessing || aiProcessing
-                ? "生成中…"
-                : mode === "AI_PORTRAIT"
-                  ? "AI肖像生成を実行する"
-                  : "AI遺影写真を生成する"}
+              <IconUndo />
+              <span className="hidden sm:inline">元に戻す</span>
             </button>
-            {!previewUrl && (
-              <p className="mt-2 text-center text-xs text-slate-500">
-                先に写真をアップロードしてください
-              </p>
-            )}
-            {/* 開発用メモ（小さな注意書き） */}
-            <p className="mt-3 rounded-md bg-stone-50 px-3 py-2 text-[11px] leading-5 text-slate-500">
-              開発メモ: 現在のMVPでは、人物再生成は行わず、ブラウザ内Canvasで基準写真を生成しています。外部AI処理は次の開発ステップで接続します。
-            </p>
+            <button
+              type="button"
+              disabled
+              className="flex cursor-not-allowed items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-400 opacity-50"
+            >
+              <IconRedo />
+              <span className="hidden sm:inline">やり直す</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportAll}
+              disabled={!canExport}
+              className="flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-stone-100 disabled:opacity-40"
+            >
+              <IconSave />
+              <span className="hidden sm:inline">保存</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExport("base")}
+              disabled={!canExport}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:opacity-40"
+            >
+              <IconExport />
+              書き出し
+            </button>
           </div>
+        </header>
 
-          <IeiPhotoStatus
-            status={statusState.status}
-            progress={statusState.progress}
-            label={statusState.label}
-          />
-        </div>
+        {/* メッセージ */}
+        {(info || error) && (
+          <div className="px-4 pt-3 sm:px-6">
+            {info && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800">
+                {info}
+              </div>
+            )}
+            {error && (
+              <div
+                role="alert"
+                className="mt-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700"
+              >
+                {error}
+              </div>
+            )}
+          </div>
+        )}
 
-        <div
-          ref={previewRef}
-          className="grid gap-6 scroll-mt-4 lg:sticky lg:top-4 lg:self-start"
-        >
-          <IeiPhotoPreview
-            beforeUrl={previewUrl}
-            outputUrl={outputUrl}
-            previewKind={previewKind}
-            onPreviewKindChange={setPreviewKind}
-            showGuides={showGuides}
-            onToggleGuides={setShowGuides}
-            completed={hasBase}
-          />
+        {/* 本体: 左コントロール / 中央キャンバス */}
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 lg:flex-row lg:items-start sm:p-6">
+          {/* 左コントロールパネル */}
+          <div className="w-full shrink-0 space-y-4 lg:w-80">
+            {/* 読み込み（未選択時のみ目立たせる） */}
+            <div ref={uploadSectionRef}>
+              {!previewUrl ? (
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-stone-300 bg-white px-4 py-8 text-center shadow-sm transition hover:border-amber-500 hover:bg-amber-50/40">
+                  <IconUpload className="mb-2 h-6 w-6 text-amber-600" />
+                  <span className="text-sm font-semibold text-slate-700">
+                    写真を読み込む
+                  </span>
+                  <span className="mt-1 text-xs text-slate-500">
+                    クリックして JPEG / PNG を選択
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleSelectFile(f);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              ) : (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 shadow-sm">
+                  <span className="truncate text-xs text-slate-600">
+                    {fileName ?? "読み込み済みの写真"}
+                  </span>
+                  <div className="flex shrink-0 gap-1.5">
+                    <label className="cursor-pointer rounded-md border border-stone-300 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-stone-100">
+                      変更
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleSelectFile(f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleClear}
+                      className="rounded-md border border-stone-300 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-stone-100"
+                    >
+                      取り消す
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
-          {/* 生成完了後の次アクション */}
-          {isCompleted && hasBase && (
-            <IeiPhotoNextActions
-              onDownloadAll={handleExportAll}
-              onAdjust={handleAdjust}
-              onAdvancedAi={handleAdvancedAi}
-              disabled={exporting}
-            />
-          )}
-
-          {/* モバイル用の固定ライブプレビュー（補正スライダー操作中も常に見える）。
-              デスクトップは右カラムのプレビューが sticky になるため非表示。 */}
-          {outputUrl && (
-            <div className="sticky top-0 z-20 mb-1 rounded-lg border border-stone-200 bg-white/95 p-2 shadow-sm backdrop-blur lg:hidden">
-              <p className="mb-1 text-[11px] font-semibold text-slate-500">
-                プレビュー（補正中に反映）
-              </p>
-              <div className="flex justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={outputUrl}
-                  alt="補正プレビュー"
-                  className="max-h-44 w-auto rounded border border-stone-200 object-contain"
+            {/* 明るさ・色調整 */}
+            <section
+              ref={adjustmentRef}
+              className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
+            >
+              <StudioSectionHeading
+                icon={<IconSun className="h-4 w-4" />}
+                title="明るさ・色調整"
+              />
+              <StudioSlider
+                label="明るさ"
+                value={adjustments.brightness}
+                min={IEI_PHOTO_ADJUSTMENT_RANGES.brightness.min}
+                max={IEI_PHOTO_ADJUSTMENT_RANGES.brightness.max}
+                valueLabel={signed(adjustments.brightness)}
+                disabled={controlsDisabled}
+                onChange={(v) => handleAdjustmentChange("brightness", v)}
+              />
+              <StudioSlider
+                label="コントラスト"
+                value={adjustments.contrast}
+                min={IEI_PHOTO_ADJUSTMENT_RANGES.contrast.min}
+                max={IEI_PHOTO_ADJUSTMENT_RANGES.contrast.max}
+                valueLabel={signed(adjustments.contrast)}
+                disabled={controlsDisabled}
+                onChange={(v) => handleAdjustmentChange("contrast", v)}
+              />
+              <StudioSlider
+                label="彩度"
+                value={adjustments.saturation}
+                min={IEI_PHOTO_ADJUSTMENT_RANGES.saturation.min}
+                max={IEI_PHOTO_ADJUSTMENT_RANGES.saturation.max}
+                valueLabel={signed(adjustments.saturation)}
+                disabled={controlsDisabled}
+                onChange={(v) => handleAdjustmentChange("saturation", v)}
+              />
+              <div className="mt-1 border-t border-stone-100 pt-1">
+                <StudioToggle
+                  label="自動補正を適用"
+                  checked={autoCorrect}
+                  disabled={controlsDisabled}
+                  onChange={setAutoCorrect}
                 />
               </div>
-            </div>
-          )}
+            </section>
 
-          <div ref={adjustmentRef}>
-            <IeiPhotoAdjustmentPanel
-              adjustments={adjustments}
-              onChange={handleAdjustmentChange}
-              onReset={handleResetAdjustments}
-              autoCorrect={autoCorrect}
-              onToggleAutoCorrect={setAutoCorrect}
-              disabled={!imgLoaded}
+            {/* 背景 */}
+            <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+              <StudioSectionHeading
+                icon={<IconImage className="h-4 w-4" />}
+                title="背景"
+              />
+              <StudioSwatchGroup
+                options={bgSwatchOptions}
+                value={background.type}
+                disabled={controlsDisabled}
+                onChange={handleBackgroundType}
+              />
+              {/* 背景切り抜き（性別連動の写真背景 + rembg） */}
+              <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                <div className="mb-2 flex gap-1.5">
+                  {(["male", "female"] as IeiPhotoGender[]).map((g) => {
+                    const active =
+                      background.type === "photo" &&
+                      (background.gender ?? "male") === g;
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        aria-pressed={active}
+                        disabled={controlsDisabled}
+                        onClick={() => handleBackgroundGender(g)}
+                        className={cnStudio(active)}
+                      >
+                        {g === "male" ? "男性（青）" : "女性（桃）"}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveBackground}
+                  disabled={controlsDisabled || removingBg}
+                  className="w-full rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
+                >
+                  {removingBg
+                    ? "背景を切り抜き中…"
+                    : hasCutout
+                      ? "背景を切り抜き直す"
+                      : "背景を切り抜く"}
+                </button>
+              </div>
+            </section>
+
+            {/* トリミング・構図 */}
+            <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+              <StudioSectionHeading
+                icon={<IconCrop className="h-4 w-4" />}
+                title="トリミング・構図"
+              />
+              <StudioPillGroup
+                options={trimOptions}
+                value={previewKind}
+                disabled={controlsDisabled}
+                onChange={setPreviewKind}
+              />
+              <div className="mt-2">
+                <StudioToggle
+                  label="顔を中心に配置"
+                  checked={faceCenter}
+                  disabled={controlsDisabled}
+                  onChange={handleToggleFaceCenter}
+                />
+                <StudioToggle
+                  label="ガイド線を表示"
+                  checked={showGuides}
+                  disabled={controlsDisabled}
+                  onChange={setShowGuides}
+                />
+              </div>
+            </section>
+
+            {/* 表情の調整（現状は表示のみ・AI接続は今後） */}
+            <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+              <StudioSectionHeading
+                icon={<IconSmile className="h-4 w-4" />}
+                title="表情の調整"
+              />
+              <StudioSlider
+                label="自然な微笑み"
+                value={smile}
+                min={0}
+                max={100}
+                valueLabel={`${smile}`}
+                disabled={controlsDisabled}
+                onChange={setSmile}
+              />
+              <StudioSlider
+                label="目元の明るさ"
+                value={eyeBrightness}
+                min={0}
+                max={100}
+                valueLabel={`${eyeBrightness}`}
+                disabled={controlsDisabled}
+                onChange={setEyeBrightness}
+              />
+              <StudioToggle
+                label="歯の見え方を調整"
+                checked={teethAdjust}
+                disabled={controlsDisabled}
+                onChange={setTeethAdjust}
+              />
+              <p className="mt-2 rounded bg-stone-50 px-2.5 py-1.5 text-[11px] leading-5 text-slate-500">
+                表情の調整はAI仕上げ機能として準備中です。現在の補正・出力には影響しません。
+              </p>
+            </section>
+
+            {/* 服装の調整 */}
+            <section
+              ref={finishSectionRef}
+              className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
+            >
+              <StudioSectionHeading
+                icon={<IconShirt className="h-4 w-4" />}
+                title="服装の調整"
+              />
+              <StudioToggle
+                label="フォーマル（洋装・喪服）"
+                checked={formal}
+                disabled={controlsDisabled}
+                onChange={handleToggleFormal}
+              />
+              <StudioSlider
+                label="レタッチの強さ"
+                value={retouchValue}
+                min={0}
+                max={100}
+                valueLabel={`${retouchValue}`}
+                disabled={controlsDisabled}
+                onChange={handleRetouchChange}
+              />
+              <button
+                type="button"
+                onClick={handleAdvancedAi}
+                disabled={controlsDisabled || aiProcessing || !hasBase}
+                className="mt-1 w-full rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-900 disabled:opacity-50"
+              >
+                {aiProcessing ? "AIで仕上げ中…" : "AIで仕上げる（高度補正）"}
+              </button>
+              {hasAiResult && (
+                <button
+                  type="button"
+                  onClick={handleDeAi}
+                  disabled={deAiProcessing}
+                  className="mt-1.5 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-stone-100 disabled:opacity-50"
+                >
+                  {deAiProcessing
+                    ? "脱AI処理中…"
+                    : `レタッチを適用（脱AI: ${deAiStrength}）`}
+                </button>
+              )}
+            </section>
+
+            {/* 詳細設定（既存の全機能: モード/AI/脱AI/品質/出力） */}
+            <section
+              ref={exportSectionRef}
+              className="rounded-xl border border-stone-200 bg-white shadow-sm"
+            >
+              <button
+                type="button"
+                onClick={() => setShowDetails((v) => !v)}
+                aria-expanded={showDetails}
+                className="flex w-full items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-slate-700"
+              >
+                詳細設定（AIモード・出力・品質チェック）
+                <span className="text-slate-400">{showDetails ? "−" : "＋"}</span>
+              </button>
+              {showDetails && (
+                <div className="space-y-4 border-t border-stone-200 p-4">
+                  <IeiPhotoModeSelector
+                    selectedMode={mode}
+                    onSelect={setMode}
+                    disabled={isProcessing || aiProcessing}
+                  />
+                  {isAiMode && (
+                    <IeiPhotoAiPanel
+                      mode={mode}
+                      clothingStyle={clothingStyle}
+                      onChangeClothing={handleChangeClothing}
+                      pose={pose}
+                      onChangePose={handleChangePose}
+                      allowPortrait={allowPortrait}
+                      onTogglePortrait={setAllowPortrait}
+                      allowAuto={allowAuto}
+                      onToggleAuto={setAllowAuto}
+                      onAdvanced={handleAdvancedAi}
+                      onAuto={handleAuto}
+                      aiProcessing={aiProcessing}
+                      aiResultMode={aiResultMode}
+                      onClearAiResult={handleClearAiResult}
+                      disabled={isProcessing || !imgLoaded || !hasBase}
+                    />
+                  )}
+                  {hasAiResult && (
+                    <IeiPhotoDeAiPanel
+                      strength={deAiStrength}
+                      onChangeStrength={handleChangeDeAiStrength}
+                      onApply={handleDeAi}
+                      onRevert={handleRevertDeAi}
+                      appliedStrength={deAiResult}
+                      processing={deAiProcessing}
+                      disabled={isProcessing || aiProcessing}
+                    />
+                  )}
+                  <IeiPhotoBackgroundPanel
+                    settings={background}
+                    onChangeType={handleBackgroundType}
+                    onChangeGender={handleBackgroundGender}
+                    onRemoveBackground={handleRemoveBackground}
+                    removing={removingBg}
+                    hasCutout={hasCutout}
+                    disabled={isProcessing || !imgLoaded}
+                  />
+                  <div className="rounded-lg border border-stone-200 bg-white p-3">
+                    <button
+                      type="button"
+                      onClick={handleStart}
+                      disabled={!previewUrl || isProcessing || aiProcessing}
+                      className="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {isProcessing || aiProcessing
+                        ? "生成中…"
+                        : mode === "AI_PORTRAIT"
+                          ? "AI肖像生成を実行する"
+                          : "AI遺影写真を生成する"}
+                    </button>
+                  </div>
+                  <IeiPhotoStepIndicator currentStep={currentStep} />
+                  <IeiPhotoStatus
+                    status={statusState.status}
+                    progress={statusState.progress}
+                    label={statusState.label}
+                  />
+                  <IeiPhotoAdjustmentPanel
+                    adjustments={adjustments}
+                    onChange={handleAdjustmentChange}
+                    onReset={handleResetAdjustments}
+                    autoCorrect={autoCorrect}
+                    onToggleAutoCorrect={setAutoCorrect}
+                    disabled={!imgLoaded}
+                  />
+                  <IeiPhotoExportButtons
+                    exports={hasBase ? READY_EXPORTS : null}
+                    enabled={canExport}
+                    onExport={handleExport}
+                    onExportAll={handleExportAll}
+                  />
+                  {isCompleted && hasBase && (
+                    <IeiPhotoNextActions
+                      onDownloadAll={handleExportAll}
+                      onAdjust={handleAdjust}
+                      onAdvancedAi={handleAdvancedAi}
+                      disabled={exporting}
+                    />
+                  )}
+                  {hasAiResult && <IeiPhotoAiQualityCheck />}
+                  <IeiPhotoQualityCheck
+                    items={hasBase ? READY_QUALITY_CHECKS : INITIAL_QUALITY_CHECKS}
+                  />
+                  <IeiPhotoPreview
+                    beforeUrl={previewUrl}
+                    outputUrl={outputUrl}
+                    previewKind={previewKind}
+                    onPreviewKindChange={setPreviewKind}
+                    showGuides={showGuides}
+                    onToggleGuides={setShowGuides}
+                    completed={hasBase}
+                  />
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* 中央: キャンバス + 仕上げ候補 */}
+          <div ref={previewRef} className="min-w-0 flex-1 space-y-4">
+            <StudioCanvas
+              beforeUrl={previewUrl}
+              outputUrl={outputUrl}
+              aspect={previewAspect}
+              showGuides={guidesVisible}
+            />
+            <StudioCandidates
+              items={candidates}
+              disabled={controlsDisabled}
+              onToggle={handleToggleCandidate}
             />
           </div>
-          <IeiPhotoExportButtons
-            exports={hasBase ? READY_EXPORTS : null}
-            enabled={canExport}
-            onExport={handleExport}
-            onExportAll={handleExportAll}
-          />
         </div>
       </div>
-
-      {/* 目視確認・品質チェックは一番下部に表示 */}
-      <div className="mt-6 grid gap-6">
-        {hasAiResult && <IeiPhotoAiQualityCheck />}
-        <IeiPhotoQualityCheck
-          items={hasBase ? READY_QUALITY_CHECKS : INITIAL_QUALITY_CHECKS}
-        />
-      </div>
-    </main>
+    </div>
   );
+}
+
+/** 背景切り抜きの性別ボタン用クラス。 */
+function cnStudio(active: boolean): string {
+  return [
+    "flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition",
+    active
+      ? "bg-slate-800 text-white"
+      : "bg-white text-slate-600 border border-stone-300 hover:bg-stone-100",
+  ].join(" ");
 }
