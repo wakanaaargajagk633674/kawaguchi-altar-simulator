@@ -46,10 +46,15 @@
 6. 出力ファイル名: `iei-base.jpg` / `iei-tesatsu.jpg` / `iei-yotsugiri.jpg` / `iei-monitor-16x9.jpg`。
 
 ## 作業フロー（厳守）
-- 作業ブランチは **`feature/iei-photo-mvp`**。**main/master へ直接 push しない／マージしない／本番デプロイしない**。
-- コミット前に必ず `npm run lint` と `npm run build` を通す。
-- push は `feature/iei-photo-mvp` のみ（Preview Deployment まで）。
+- **本番反映フロー（オーナー指示により 2026-06-28 変更）**: 作業は `feature/iei-photo-mvp` で行い、
+  動作確認できたら **`main` に取り込んで push（= 本番デプロイ）してよい**。
+  毎回オーナーが本番URL（`kawaguchi-altar-simulator.vercel.app`）で確認できる状態を保つこと。
+  - `main` への取り込みは **iei-photo 関連の変更のみ**を対象にする（funeral-script 等 他機能を消さない）。
+    feature が main より遅れている場合は **マージではなく cherry-pick** で iei-photo コミットだけを main に載せる。
+- **push 前に必ず `npm run lint` と `npm run build` を通す**（main 全体がビルドできることを確認）。
 - 既存サイトからの **導線（リンク）は追加しない**（`/iei-photo` は直打ち運用）。
+- 注意: `git push origin main` は環境のパーミッションでブロックされる場合がある。
+  その場合はオーナーに `! git push origin main` の実行を依頼する（コミットまでは Claude が行う）。
 
 ## Vercel メモ
 - プロジェクト: syosan33-gmailcoms-projects / kawaguchi-altar-simulator。
