@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import FuneralScriptForm from "@/components/funeral-script/FuneralScriptForm";
+import FuneralScriptForm, {
+  FUNERAL_FORM_SECTIONS,
+} from "@/components/funeral-script/FuneralScriptForm";
 import FuneralScriptFileControls from "@/components/funeral-script/FuneralScriptFileControls";
 import FuneralScriptAiControls from "@/components/funeral-script/FuneralScriptAiControls";
 import FuneralScriptOriginalLetterPanel from "@/components/funeral-script/FuneralScriptOriginalLetterPanel";
@@ -522,6 +524,39 @@ export default function FuneralScriptPage() {
   const hasScript = sections.length > 0;
   const hasLetter = form.hasOriginalCondolenceLetter;
   const deceasedLabel = form.deceasedName.trim() || "故人名未入力";
+
+  // 入力進捗（台本の土台になる主要項目の充足率）
+  const progressFields = [
+    form.deceasedName,
+    form.age,
+    form.birthDate,
+    form.deathDate,
+    form.birthPlace,
+    form.venueName,
+    form.startTime,
+    form.chiefMournerName,
+    form.relationshipToChiefMourner,
+    form.hobbies,
+    form.personality,
+    form.episodes,
+    form.portraitPhotoDescription,
+    form.workDescription || form.career,
+    form.familyStructure,
+  ];
+  const progressFilled = progressFields.filter((v) => v?.trim()).length;
+  const progressPct = Math.round(
+    (progressFilled / progressFields.length) * 100,
+  );
+  const hasFuneralDay = form.ceremonyType !== "buddhist_wake";
+  const navSections = FUNERAL_FORM_SECTIONS.filter(
+    (s) => !s.funeralOnly || hasFuneralDay,
+  );
+  const scrollToSection = useCallback((id: string) => {
+    setActiveView("form");
+    const el = document.getElementById(id);
+    if (el instanceof HTMLDetailsElement) el.open = true;
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
   const profileCount = [
     form.hobbies,
     form.personality,
@@ -554,38 +589,49 @@ export default function FuneralScriptPage() {
 
       {/* 画面表示（印刷時は非表示） */}
       <div className="no-print">
-        <header className="mb-4 rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:mb-5 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-amber-700">川口典礼</p>
+        <header className="mb-4 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-white shadow-sm sm:mb-5">
+          <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 sm:py-5">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold tracking-wide text-amber-300">
+                川口典礼
+              </p>
+              <h1 className="mt-0.5 text-xl font-bold leading-tight sm:text-2xl">
+                葬儀司会台本・会葬礼状 作成ツール
+              </h1>
+              <p className="mt-0.5 text-xs text-slate-300">
+                大切な方を想う、心に寄り添うお手伝いを。
+              </p>
+            </div>
             <Link
               href="/"
-              className="text-xs text-slate-500 underline-offset-2 hover:text-amber-700 hover:underline"
+              className="shrink-0 rounded-md border border-white/20 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/10"
             >
               ← 祭壇シミュレーターへ
             </Link>
           </div>
-          <h1 className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">
-            葬儀司会台本作成
-          </h1>
-          <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-            <div className="rounded-md bg-stone-50 px-3 py-2">
-              <p className="text-xs font-medium text-slate-500">案件</p>
-              <p className="mt-0.5 font-semibold text-slate-950">
-                {deceasedLabel}
-              </p>
+          <div className="border-t border-white/10 bg-slate-950/40 px-5 py-3">
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 text-xs font-medium text-slate-300">
+                入力進捗
+              </span>
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/15">
+                <div
+                  className="h-full rounded-full bg-amber-400 transition-all duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <span className="shrink-0 text-xs font-semibold tabular-nums text-amber-200">
+                {progressPct}%（{progressFilled}/{progressFields.length}項目）
+              </span>
             </div>
-            <div className="rounded-md bg-stone-50 px-3 py-2">
-              <p className="text-xs font-medium text-slate-500">式種別</p>
-              <p className="mt-0.5 font-semibold text-slate-950">
-                {CEREMONY_TYPE_LABELS[form.ceremonyType]}
-              </p>
-            </div>
-            <div className="rounded-md bg-stone-50 px-3 py-2">
-              <p className="text-xs font-medium text-slate-500">作成状況</p>
-              <p className="mt-0.5 font-semibold text-slate-950">
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-300">
+              <span>案件：{deceasedLabel}</span>
+              <span>式種別：{CEREMONY_TYPE_LABELS[form.ceremonyType]}</span>
+              <span>
+                作成状況：
                 {hasScript ? `台本 ${sections.length}項目` : "台本未生成"}
                 {hasLetter ? " ／ 礼状あり" : ""}
-              </p>
+              </span>
             </div>
           </div>
         </header>
@@ -619,7 +665,30 @@ export default function FuneralScriptPage() {
           </div>
         </nav>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(360px,460px)_minmax(0,1fr)] lg:items-start">
+        <div className="grid gap-5 lg:grid-cols-[minmax(360px,460px)_minmax(0,1fr)] lg:items-start xl:grid-cols-[200px_minmax(360px,440px)_minmax(0,1fr)]">
+          {/* ステップナビ（xl以上のみ表示） */}
+          <nav className="sticky top-4 hidden self-start xl:block">
+            <p className="px-2 pb-2 text-xs font-semibold text-slate-500">
+              入力ステップ
+            </p>
+            <ol className="grid gap-1">
+              {navSections.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection(s.id)}
+                    className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm text-slate-700 transition hover:bg-white hover:shadow-sm"
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-600/40 bg-amber-50 text-xs font-bold text-amber-700">
+                      {s.step}
+                    </span>
+                    <span className="truncate font-medium">{s.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+
           {/* 入力フォーム */}
           <div
             className={cn(
@@ -718,31 +787,58 @@ export default function FuneralScriptPage() {
                   {sections.length} セクション（本文は直接編集できます）
                 </p>
               )}
-              <FuneralScriptPreview
-                sections={sections}
-                printSize={form.printSize}
-                onEditBody={handleEditBody}
-              />
             </div>
 
+            {/* プレビュー2枚（xlで台本と礼状を横並び表示） */}
             <div
               className={cn(
-                "content-start gap-3 lg:grid",
-                activeView === "letter" ? "grid" : "hidden",
-                !hasLetter && "lg:hidden",
+                "gap-3",
+                hasLetter ? "xl:grid xl:grid-cols-2 xl:items-start" : "grid",
               )}
             >
-              <FuneralScriptOriginalLetterPanel
-                form={form}
-                letter={originalLetter}
-                loading={letterLoading}
-                error={letterError}
-                warnings={letterWarnings}
-                copied={letterCopied}
-                onEditBody={handleEditLetterBody}
-                onRegenerate={handleGenerateLetter}
-                onCopy={handleCopyLetter}
-              />
+              <div
+                className={cn(
+                  "min-w-0",
+                  activeView === "script" ? "block" : "hidden",
+                  "lg:block",
+                )}
+              >
+                {hasLetter && (
+                  <p className="mb-2 hidden text-xs font-semibold text-slate-600 xl:block">
+                    葬儀司会台本（プレビュー）
+                  </p>
+                )}
+                <FuneralScriptPreview
+                  sections={sections}
+                  printSize={form.printSize}
+                  onEditBody={handleEditBody}
+                />
+              </div>
+
+              {hasLetter && (
+                <div
+                  className={cn(
+                    "min-w-0",
+                    activeView === "letter" ? "block" : "hidden",
+                    "lg:block",
+                  )}
+                >
+                  <p className="mb-2 hidden text-xs font-semibold text-slate-600 xl:block">
+                    オリジナル会葬礼状（プレビュー）
+                  </p>
+                  <FuneralScriptOriginalLetterPanel
+                    form={form}
+                    letter={originalLetter}
+                    loading={letterLoading}
+                    error={letterError}
+                    warnings={letterWarnings}
+                    copied={letterCopied}
+                    onEditBody={handleEditLetterBody}
+                    onRegenerate={handleGenerateLetter}
+                    onCopy={handleCopyLetter}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

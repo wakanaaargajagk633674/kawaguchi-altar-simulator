@@ -26,6 +26,25 @@ type FuneralScriptFormProps = {
   onGenerate: () => void;
 };
 
+/**
+ * 左サイドのステップナビと本文セクションを対応づけるための定義。
+ * id は本文 <details> のアンカーに使う。`funeralOnly` は告別式を含む式のみ表示。
+ */
+export const FUNERAL_FORM_SECTIONS: {
+  id: string;
+  step: number;
+  title: string;
+  funeralOnly?: boolean;
+}[] = [
+  { id: "fs-basic", step: 1, title: "基本情報" },
+  { id: "fs-mourner", step: 2, title: "喪主・関係者" },
+  { id: "fs-memo", step: 3, title: "取材メモ" },
+  { id: "fs-letter", step: 4, title: "オリジナル会葬礼状" },
+  { id: "fs-wake", step: 5, title: "通夜の引き継ぎ", funeralOnly: true },
+  { id: "fs-options", step: 6, title: "進行オプション" },
+  { id: "fs-settings", step: 7, title: "台本設定" },
+];
+
 const cardClass =
   "overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm";
 const labelClass = "block text-sm font-medium text-slate-700";
@@ -107,11 +126,15 @@ function ToggleField({
 }
 
 function FormSection({
+  id,
+  step,
   title,
   summary,
   children,
-  defaultOpen = false,
+  defaultOpen = true,
 }: {
+  id?: string;
+  step?: number;
   title: string;
   summary?: string;
   children: ReactNode;
@@ -121,23 +144,37 @@ function FormSection({
 
   return (
     <details
-      className={cardClass}
+      id={id}
+      className={cn(cardClass, "scroll-mt-24")}
       open={isOpen}
       onToggle={(e) => setIsOpen(e.currentTarget.open)}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 outline-none transition hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-amber-500 sm:px-5 [&::-webkit-details-marker]:hidden">
-        <span>
-          <span className="block text-base font-semibold text-slate-950">
-            {title}
-          </span>
-          {summary && (
-            <span className="mt-0.5 block text-xs leading-5 text-slate-500">
-              {summary}
+        <span className="flex items-center gap-3">
+          {step != null && (
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-600 text-xs font-bold text-white">
+              {step}
             </span>
           )}
+          <span>
+            <span className="block text-base font-semibold text-slate-950">
+              {title}
+            </span>
+            {summary && (
+              <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                {summary}
+              </span>
+            )}
+          </span>
         </span>
-        <span className="shrink-0 rounded-full border border-stone-300 px-2 py-1 text-xs font-semibold text-slate-600">
-          開閉
+        <span
+          className={cn(
+            "shrink-0 text-stone-400 transition",
+            isOpen && "rotate-180",
+          )}
+          aria-hidden
+        >
+          ▾
         </span>
       </summary>
       <div className="border-t border-stone-100 px-4 py-4 sm:px-5">
@@ -161,9 +198,10 @@ export default function FuneralScriptForm({
     <div className="grid gap-4">
       {/* 基本情報 */}
       <FormSection
+        id="fs-basic"
+        step={1}
         title="基本情報"
         summary="式種別、故人名、日時など台本の土台になる項目です。"
-        defaultOpen
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block sm:col-span-2">
@@ -235,6 +273,8 @@ export default function FuneralScriptForm({
 
       {/* 喪主・関係者 */}
       <FormSection
+        id="fs-mourner"
+        step={2}
         title="喪主・関係者"
         summary="焼香順や開式の辞に使う名前を確認します。"
       >
@@ -277,9 +317,10 @@ export default function FuneralScriptForm({
 
       {/* 故人情報（AI生成の素材） */}
       <FormSection
+        id="fs-memo"
+        step={3}
         title="取材メモ"
         summary="ナレーションと礼状の精度に直結します。短い箇条書きでも使えます。"
-        defaultOpen
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField
@@ -342,6 +383,8 @@ export default function FuneralScriptForm({
 
       {/* オリジナル会葬礼状 */}
       <FormSection
+        id="fs-letter"
+        step={4}
         title="オリジナル会葬礼状"
         summary="必要な案件だけオンにします。本文は生成後に礼状画面で編集できます。"
       >
@@ -426,6 +469,8 @@ export default function FuneralScriptForm({
       {/* 通夜の引き継ぎ（告別式で通夜に言及する素材） */}
       {hasFuneralDay && (
         <FormSection
+          id="fs-wake"
+          step={5}
           title="通夜の引き継ぎ"
           summary="告別式で通夜の様子に触れる場合だけ入力します。"
         >
@@ -465,6 +510,8 @@ export default function FuneralScriptForm({
 
       {/* 進行オプション */}
       <FormSection
+        id="fs-options"
+        step={6}
         title="進行オプション"
         summary="弔電、喪主挨拶、出棺案内など式次第を選びます。"
       >
@@ -540,6 +587,8 @@ export default function FuneralScriptForm({
 
       {/* 台本設定 */}
       <FormSection
+        id="fs-settings"
+        step={7}
         title="台本設定"
         summary="文体、長さ、印刷時の文字サイズを調整します。"
       >
@@ -604,9 +653,15 @@ export default function FuneralScriptForm({
       <button
         type="button"
         onClick={onGenerate}
-        className="min-h-12 rounded-md bg-amber-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2"
+        className="group min-h-14 rounded-lg bg-slate-900 px-4 py-3 text-center font-semibold text-white shadow-sm ring-1 ring-amber-600/40 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
       >
-        台本を生成する
+        <span className="flex items-center justify-center gap-2 text-base">
+          <span className="text-amber-300">✦</span>
+          台本を生成する
+        </span>
+        <span className="mt-0.5 block text-[11px] font-normal text-slate-300">
+          台本と会葬礼状をまとめて生成します
+        </span>
       </button>
     </div>
   );
