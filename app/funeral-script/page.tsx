@@ -793,7 +793,7 @@ export default function FuneralScriptPage() {
           </div>
         </nav>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(340px,420px)_minmax(0,1fr)] lg:items-start">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-start">
           {/* 入力フォーム */}
           <div
             className={cn(
@@ -801,16 +801,16 @@ export default function FuneralScriptPage() {
               activeView === "form" ? "grid" : "hidden",
             )}
           >
-            <FuneralScriptFileControls
-              canSave={hasScript}
-              onSave={handleSaveFile}
-              onLoaded={handleLoadFile}
-            />
             <FuneralScriptForm
               form={form}
               onChange={handleChange}
               onCeremonyTypeChange={handleCeremonyTypeChange}
               onGenerate={handleGenerate}
+            />
+            <FuneralScriptFileControls
+              canSave={hasScript}
+              onSave={handleSaveFile}
+              onLoaded={handleLoadFile}
             />
           </div>
 
@@ -834,15 +834,17 @@ export default function FuneralScriptPage() {
                   canRevert={preAiSections !== null}
                 />
               )}
-              <FuneralScriptToolbar
-                printSize={form.printSize}
-                onPrintSizeChange={(printSize) => handleChange({ printSize })}
-                onCopy={handleCopy}
-                onCreatePdf={handleCreatePdf}
-                copied={copied}
-                disabled={!hasScript}
-                pdfLoading={pdfLoading}
-              />
+              <div className="lg:hidden">
+                <FuneralScriptToolbar
+                  printSize={form.printSize}
+                  onPrintSizeChange={(printSize) => handleChange({ printSize })}
+                  onCopy={handleCopy}
+                  onCreatePdf={handleCreatePdf}
+                  copied={copied}
+                  disabled={!hasScript}
+                  pdfLoading={pdfLoading}
+                />
+              </div>
               {(pdfLoading || pdfError || pdfUrl) && (
                 <div
                   className={cn(
