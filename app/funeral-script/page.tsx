@@ -551,7 +551,9 @@ export default function FuneralScriptPage() {
   const navSections = FUNERAL_FORM_SECTIONS.filter(
     (s) => !s.funeralOnly || hasFuneralDay,
   );
+  const [activeStepId, setActiveStepId] = useState("fs-basic");
   const scrollToSection = useCallback((id: string) => {
+    setActiveStepId(id);
     setActiveView("form");
     const el = document.getElementById(id);
     if (el instanceof HTMLDetailsElement) el.open = true;
@@ -584,12 +586,12 @@ export default function FuneralScriptPage() {
   ];
 
   return (
-    <main className="mx-auto w-full max-w-[1400px] px-4 pb-28 pt-5 sm:px-6 sm:pt-8 lg:pb-10">
+    <main className="mx-auto w-full max-w-[1600px] px-4 pb-28 pt-5 sm:px-6 sm:pt-8 lg:pb-10">
       <style>{PRINT_CSS}</style>
 
       {/* 画面表示（印刷時は非表示） */}
       <div className="no-print">
-        <header className="mb-4 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-white shadow-sm sm:mb-5">
+        <header className="mb-4 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-white shadow-sm sm:mb-5 lg:hidden">
           <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 sm:py-5">
             <div className="min-w-0">
               <p className="text-xs font-semibold tracking-wide text-amber-300">
@@ -636,7 +638,133 @@ export default function FuneralScriptPage() {
           </div>
         </header>
 
-        <nav className="sticky top-0 z-30 -mx-4 mb-4 border-y border-stone-200 bg-[#f7f4ee]/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:hidden">
+        {/* デスクトップ・アプリシェル（濃紺サイドバー＋上部アクションバー＋本文） */}
+        <div className="lg:flex lg:items-start lg:gap-5">
+          {/* 濃紺・左サイドバー（lg+のみ） */}
+          <aside className="sticky top-4 hidden w-60 shrink-0 self-start overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-white shadow-sm lg:flex lg:flex-col">
+            <div className="border-b border-white/10 px-4 py-4">
+              <div className="flex items-center gap-2">
+                <span
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15 text-lg text-amber-300"
+                  aria-hidden
+                >
+                  ⚜
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold tracking-wide text-amber-300">
+                    川口典礼
+                  </p>
+                  <p className="truncate text-xs font-bold leading-tight">
+                    司会台本・会葬礼状
+                  </p>
+                </div>
+              </div>
+              <p className="mt-2 text-[10px] leading-4 text-slate-400">
+                大切な方を想う、心に寄り添うお手伝いを。
+              </p>
+            </div>
+
+            <nav className="px-2 py-3">
+              <ol className="grid gap-1">
+                {navSections.map((s) => {
+                  const active = activeStepId === s.id;
+                  return (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => scrollToSection(s.id)}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-sm transition",
+                          active
+                            ? "bg-white/10 font-semibold text-white"
+                            : "text-slate-300 hover:bg-white/5 hover:text-white",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition",
+                            active
+                              ? "bg-amber-500 text-slate-900"
+                              : "border border-white/25 text-slate-300",
+                          )}
+                        >
+                          {s.step}
+                        </span>
+                        <span className="truncate">{s.title}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+
+            <div className="mt-auto border-t border-white/10 p-3">
+              <div className="rounded-lg bg-white/5 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-200">
+                  <span aria-hidden>💡</span>入力のヒント
+                </p>
+                <p className="mt-1 text-[11px] leading-5 text-slate-300">
+                  わかる範囲でご入力ください。後からいつでも編集できます。
+                </p>
+              </div>
+              <Link
+                href="/"
+                className="mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-slate-200 transition hover:bg-white/10"
+              >
+                ← 祭壇シミュレーターへ
+              </Link>
+            </div>
+          </aside>
+
+          {/* 本文エリア */}
+          <div className="lg:min-w-0 lg:flex-1">
+            {/* 上部アクションバー（lg+のみ） */}
+            <div className="mb-4 hidden items-center gap-4 rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm lg:flex">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <span className="shrink-0 text-xs font-medium text-slate-500">
+                  入力進捗
+                </span>
+                <div className="h-2 max-w-xs flex-1 overflow-hidden rounded-full bg-stone-200">
+                  <div
+                    className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+                <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700">
+                  {progressPct}%（{progressFilled}/{progressFields.length}項目）
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveFile}
+                  disabled={!hasScript}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span aria-hidden>🗂</span>保存・引き継ぎ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreatePdf}
+                  disabled={!hasScript || pdfLoading}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span aria-hidden>📄</span>
+                  {pdfLoading ? "PDF作成中..." : "PDFを作成"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  disabled={!hasScript}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span aria-hidden>⧉</span>
+                  {copied ? "コピーしました" : "全文をコピー"}
+                </button>
+              </div>
+            </div>
+
+            <nav className="sticky top-0 z-30 -mx-4 mb-4 border-y border-stone-200 bg-[#f7f4ee]/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:hidden">
           <div className="grid grid-cols-3 gap-2">
             {mobileTabs.map((tab) => (
               <button
@@ -665,30 +793,7 @@ export default function FuneralScriptPage() {
           </div>
         </nav>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(360px,460px)_minmax(0,1fr)] lg:items-start xl:grid-cols-[200px_minmax(360px,440px)_minmax(0,1fr)]">
-          {/* ステップナビ（xl以上のみ表示） */}
-          <nav className="sticky top-4 hidden self-start xl:block">
-            <p className="px-2 pb-2 text-xs font-semibold text-slate-500">
-              入力ステップ
-            </p>
-            <ol className="grid gap-1">
-              {navSections.map((s) => (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => scrollToSection(s.id)}
-                    className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm text-slate-700 transition hover:bg-white hover:shadow-sm"
-                  >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-600/40 bg-amber-50 text-xs font-bold text-amber-700">
-                      {s.step}
-                    </span>
-                    <span className="truncate font-medium">{s.title}</span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </nav>
-
+        <div className="grid gap-5 lg:grid-cols-[minmax(340px,420px)_minmax(0,1fr)] lg:items-start">
           {/* 入力フォーム */}
           <div
             className={cn(
@@ -840,6 +945,8 @@ export default function FuneralScriptPage() {
                 </div>
               )}
             </div>
+          </div>
+          </div>
           </div>
         </div>
 
