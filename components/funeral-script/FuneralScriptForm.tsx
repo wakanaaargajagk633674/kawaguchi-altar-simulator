@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
 import { cn } from "@/lib/simulatorUtils";
 import {
   CEREMONY_TYPE_LABELS,
@@ -131,56 +130,71 @@ function FormSection({
   title,
   summary,
   children,
-  defaultOpen = true,
 }: {
   id?: string;
   icon?: string;
   title: string;
   summary?: string;
   children: ReactNode;
-  defaultOpen?: boolean;
 }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
   return (
-    <details
-      id={id}
-      className={cn(cardClass, "scroll-mt-24")}
-      open={isOpen}
-      onToggle={(e) => setIsOpen(e.currentTarget.open)}
-    >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 outline-none transition hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-amber-500 sm:px-5 [&::-webkit-details-marker]:hidden">
-        <span className="flex items-center gap-3">
-          {icon && (
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-50 text-base ring-1 ring-amber-200">
-              {icon}
-            </span>
-          )}
-          <span>
-            <span className="block text-base font-semibold text-slate-950">
-              {title}
-            </span>
-            {summary && (
-              <span className="mt-0.5 block text-xs leading-5 text-slate-500">
-                {summary}
-              </span>
-            )}
+    <section id={id} className={cn(cardClass, "scroll-mt-24")}>
+      <div className="flex items-center gap-3 border-b border-stone-100 px-4 py-4 sm:px-5">
+        {icon && (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-50 text-base ring-1 ring-amber-200">
+            {icon}
           </span>
-        </span>
-        <span
-          className={cn(
-            "shrink-0 text-stone-400 transition",
-            isOpen && "rotate-180",
+        )}
+        <span>
+          <span className="block text-base font-semibold text-slate-950">
+            {title}
+          </span>
+          {summary && (
+            <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+              {summary}
+            </span>
           )}
-          aria-hidden
-        >
-          ▾
         </span>
-      </summary>
-      <div className="border-t border-stone-100 px-4 py-4 sm:px-5">
-        {children}
       </div>
-    </details>
+      <div className="px-4 py-4 sm:px-5">{children}</div>
+    </section>
+  );
+}
+
+/** 文体・長さ・文字サイズ用のセグメントボタン群 */
+function SegmentedField<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: [T, string][];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="block">
+      <span className={labelClass}>{label}</span>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {options.map(([val, lbl]) => (
+          <button
+            key={val}
+            type="button"
+            onClick={() => onChange(val)}
+            aria-pressed={val === value}
+            className={cn(
+              "min-h-10 rounded-md border px-3 py-1.5 text-sm font-medium transition",
+              val === value
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-stone-300 bg-white text-slate-700 hover:bg-stone-50",
+            )}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -592,61 +606,39 @@ export default function FuneralScriptForm({
         title="台本設定"
         summary="文体、長さ、印刷時の文字サイズを調整します。"
       >
-        <div className="grid gap-3 sm:grid-cols-3">
-          <label className="block">
-            <span className={labelClass}>文体</span>
-            <select
-              value={form.tone}
-              onChange={(e) =>
-                onChange({ tone: e.target.value as FuneralScriptTone })
-              }
-              className={inputClass}
-            >
-              {(Object.keys(TONE_LABELS) as FuneralScriptTone[]).map((v) => (
-                <option key={v} value={v}>
-                  {TONE_LABELS[v]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className={labelClass}>長さ</span>
-            <select
-              value={form.length}
-              onChange={(e) =>
-                onChange({ length: e.target.value as FuneralScriptLength })
-              }
-              className={inputClass}
-            >
-              {(Object.keys(LENGTH_LABELS) as FuneralScriptLength[]).map(
-                (v) => (
-                  <option key={v} value={v}>
-                    {LENGTH_LABELS[v]}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
-          <label className="block">
-            <span className={labelClass}>印刷文字サイズ</span>
-            <select
-              value={form.printSize}
-              onChange={(e) =>
-                onChange({
-                  printSize: e.target.value as FuneralScriptPrintSize,
-                })
-              }
-              className={inputClass}
-            >
-              {(
-                Object.keys(PRINT_SIZE_LABELS) as FuneralScriptPrintSize[]
-              ).map((v) => (
-                <option key={v} value={v}>
-                  {PRINT_SIZE_LABELS[v]}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="grid gap-4">
+          <SegmentedField
+            label="文体"
+            value={form.tone}
+            options={
+              (Object.keys(TONE_LABELS) as FuneralScriptTone[]).map((v) => [
+                v,
+                TONE_LABELS[v],
+              ]) as [FuneralScriptTone, string][]
+            }
+            onChange={(tone) => onChange({ tone })}
+          />
+          <SegmentedField
+            label="長さ"
+            value={form.length}
+            options={
+              (Object.keys(LENGTH_LABELS) as FuneralScriptLength[]).map((v) => [
+                v,
+                LENGTH_LABELS[v],
+              ]) as [FuneralScriptLength, string][]
+            }
+            onChange={(length) => onChange({ length })}
+          />
+          <SegmentedField
+            label="印刷文字サイズ"
+            value={form.printSize}
+            options={
+              (Object.keys(PRINT_SIZE_LABELS) as FuneralScriptPrintSize[]).map(
+                (v) => [v, PRINT_SIZE_LABELS[v]],
+              ) as [FuneralScriptPrintSize, string][]
+            }
+            onChange={(printSize) => onChange({ printSize })}
+          />
         </div>
       </FormSection>
 
