@@ -161,7 +161,7 @@ export function StudioSwatchGroup<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
       {options.map((opt) => {
         const active = opt.value === value;
         return (

@@ -5,18 +5,15 @@ import {
   IconAdjust,
   IconExport,
   IconFinish,
-  IconHelp,
-  IconHome,
   IconLotus,
   IconPreview,
-  IconSettings,
   IconUpload,
 } from "@/components/iei-photo/studio/StudioIcons";
 
 export type StudioNavId =
-  | "home"
   | "upload"
   | "adjust"
+  | "background"
   | "finish"
   | "preview"
   | "export";
@@ -28,9 +25,9 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "home", label: "ホーム", icon: <IconHome /> },
   { id: "upload", label: "読み込み", icon: <IconUpload /> },
   { id: "adjust", label: "補正・調整", icon: <IconAdjust /> },
+  { id: "background", label: "背景", icon: <IconPreview /> },
   { id: "finish", label: "仕上げ", icon: <IconFinish /> },
   { id: "preview", label: "プレビュー", icon: <IconPreview /> },
   { id: "export", label: "書き出し", icon: <IconExport /> },
@@ -49,7 +46,7 @@ export default function StudioSidebar({
   onNavigate: (id: StudioNavId) => void;
 }) {
   return (
-    <aside className="flex w-16 shrink-0 flex-col items-center bg-slate-900 py-4 text-slate-300 sm:w-56 sm:items-stretch sm:px-3">
+    <aside className="flex w-14 shrink-0 flex-col items-center bg-slate-900 py-4 text-slate-300 sm:w-56 sm:items-stretch sm:px-3">
       <div className="mb-6 flex items-center gap-2 px-1 text-amber-300 sm:px-2">
         <IconLotus className="h-8 w-8 shrink-0" />
         <span className="hidden text-sm font-semibold text-slate-100 sm:block">
@@ -81,25 +78,6 @@ export default function StudioSidebar({
           );
         })}
       </nav>
-
-      <div className="mt-4 flex flex-col gap-1 border-t border-slate-800 pt-3">
-        <button
-          type="button"
-          disabled
-          className="flex cursor-not-allowed items-center justify-center gap-3 rounded-lg px-2 py-2.5 text-sm font-medium text-slate-400 opacity-70 sm:justify-start"
-        >
-          <IconSettings />
-          <span className="hidden sm:block">設定</span>
-        </button>
-        <button
-          type="button"
-          disabled
-          className="flex cursor-not-allowed items-center justify-center gap-3 rounded-lg px-2 py-2.5 text-sm font-medium text-slate-400 opacity-70 sm:justify-start"
-        >
-          <IconHelp />
-          <span className="hidden sm:block">ヘルプ</span>
-        </button>
-      </div>
     </aside>
   );
 }
