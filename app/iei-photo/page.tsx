@@ -47,6 +47,7 @@ import {
 import {
   IEI_PHOTO_BACKGROUND_OPTIONS,
   IEI_PHOTO_DEFAULT_BACKGROUND,
+  supportsBackgroundGradient,
 } from "@/lib/iei-photo/backgrounds";
 import {
   IEI_PHOTO_CLOTHING_LABELS,
@@ -534,6 +535,8 @@ export default function IeiPhotoPage() {
           clothingStyle,
           pose,
           background.type,
+          supportsBackgroundGradient(background.type) &&
+            Boolean(background.gradient),
         );
         const url = URL.createObjectURL(blob);
         pendingUrl = url;
@@ -798,13 +801,32 @@ export default function IeiPhotoPage() {
 
   const handleBackgroundType = useCallback(
     (type: IeiPhotoBackgroundType) => {
-      setBackground({ type });
+      setBackground((prev) => ({
+        type,
+        gradient: supportsBackgroundGradient(type)
+          ? Boolean(prev.gradient)
+          : false,
+      }));
       if (aiEnhancedImgRef.current || deAiImgRef.current) {
         setInfo("背景を変更しました。AI生成を再実行すると反映されます。");
       }
     },
     [],
   );
+
+  const handleBackgroundGradient = useCallback((next: boolean) => {
+    setBackground((prev) => {
+      if (!supportsBackgroundGradient(prev.type)) {
+        return { ...prev, gradient: false };
+      }
+      return { ...prev, gradient: next };
+    });
+    if (aiEnhancedImgRef.current || deAiImgRef.current) {
+      setInfo(
+        "背景のグラデーション設定を変更しました。AI生成を再実行すると反映されます。",
+      );
+    }
+  }, []);
 
   const canExport = hasBase && !exporting;
   const controlsDisabled = !imgLoaded;
@@ -862,6 +884,7 @@ export default function IeiPhotoPage() {
     label: compactBackgroundLabel(option.type),
     css: option.swatchCss,
   }));
+  const canUseBackgroundGradient = supportsBackgroundGradient(background.type);
 
   // トリミング・構図ピル（実際の出力サイズに対応）
   const trimOptions = IEI_PHOTO_EXPORT_ORDER.map((kind) => ({
@@ -1198,6 +1221,16 @@ export default function IeiPhotoPage() {
                 disabled={controlsDisabled}
                 onChange={handleBackgroundType}
               />
+              {canUseBackgroundGradient && (
+                <div className="mt-3 border-t border-stone-100 pt-2">
+                  <StudioToggle
+                    label="グラデーションにする"
+                    checked={Boolean(background.gradient)}
+                    disabled={controlsDisabled}
+                    onChange={handleBackgroundGradient}
+                  />
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handleAdvancedAi}

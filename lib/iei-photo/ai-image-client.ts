@@ -92,6 +92,7 @@ export async function requestAiImage(
   clothingStyle: IeiPhotoClothingStyle,
   pose: IeiPhotoPose,
   backgroundType: IeiPhotoBackgroundType,
+  backgroundGradient: boolean,
   extraPrompt?: string,
 ): Promise<Blob> {
   const imageBlob = await downscaleCanvasForAi(baseCanvas);
@@ -102,6 +103,7 @@ export async function requestAiImage(
   form.append("clothingStyle", clothingStyle);
   form.append("pose", pose);
   form.append("backgroundType", backgroundType);
+  form.append("backgroundGradient", backgroundGradient ? "true" : "false");
   if (extraPrompt && extraPrompt.trim()) {
     form.append("prompt", extraPrompt.trim());
   }

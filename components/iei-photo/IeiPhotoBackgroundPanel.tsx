@@ -1,7 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/simulatorUtils";
-import { IEI_PHOTO_BACKGROUND_OPTIONS } from "@/lib/iei-photo/backgrounds";
+import {
+  IEI_PHOTO_BACKGROUND_OPTIONS,
+  supportsBackgroundGradient,
+} from "@/lib/iei-photo/backgrounds";
 import type {
   IeiPhotoBackgroundSettings,
   IeiPhotoBackgroundType,
@@ -10,6 +13,7 @@ import type {
 type IeiPhotoBackgroundPanelProps = {
   settings: IeiPhotoBackgroundSettings;
   onChangeType: (type: IeiPhotoBackgroundType) => void;
+  onChangeGradient?: (next: boolean) => void;
   onGenerateAiBackground?: () => void;
   generating?: boolean;
   hasBase?: boolean;
@@ -20,11 +24,13 @@ type IeiPhotoBackgroundPanelProps = {
 export default function IeiPhotoBackgroundPanel({
   settings,
   onChangeType,
+  onChangeGradient,
   onGenerateAiBackground,
   generating = false,
   hasBase = false,
   disabled = false,
 }: IeiPhotoBackgroundPanelProps) {
+  const canUseGradient = supportsBackgroundGradient(settings.type);
   return (
     <section className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-3">
@@ -63,6 +69,19 @@ export default function IeiPhotoBackgroundPanel({
           );
         })}
       </div>
+
+      {canUseGradient && onChangeGradient && (
+        <label className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-slate-700">
+          グラデーションにする
+          <input
+            type="checkbox"
+            checked={Boolean(settings.gradient)}
+            disabled={disabled}
+            onChange={(e) => onChangeGradient(e.target.checked)}
+            className="h-4 w-4 accent-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          />
+        </label>
+      )}
 
       {onGenerateAiBackground && (
         <button

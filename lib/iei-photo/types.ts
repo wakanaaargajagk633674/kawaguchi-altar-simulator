@@ -168,6 +168,8 @@ export type IeiPhotoBackgroundType =
 
 export type IeiPhotoBackgroundSettings = {
   type: IeiPhotoBackgroundType;
+  /** グレー/ベージュ/ブルー/ピンクのみ。背景を同系色のグラデーションにする。 */
+  gradient?: boolean;
 };
 
 /**

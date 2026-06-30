@@ -120,10 +120,16 @@ export function buildAiPrompt(
   clothingStyle: IeiPhotoClothingStyle,
   pose: IeiPhotoPose,
   backgroundType: IeiPhotoBackgroundType = "auto",
+  backgroundGradient = false,
   extraPrompt?: string,
 ): string {
   const parts: string[] = [IEI_PHOTO_AI_BASE_PROMPTS[mode]];
   parts.push(IEI_PHOTO_BACKGROUND_PROMPTS[backgroundType]);
+  if (backgroundGradient) {
+    parts.push(
+      "背景は選択した色を基調に、淡く自然な縦方向のグラデーションにしてください。急な色変化や派手な模様は避け、人物の輪郭になじませてください。",
+    );
+  }
   const clothing = IEI_PHOTO_CLOTHING_PROMPTS[clothingStyle];
   if (clothing) {
     parts.push(clothing);

@@ -11,6 +11,21 @@ import type {
   IeiPhotoExportKind,
 } from "./types";
 
+export const IEI_PHOTO_GRADIENT_CAPABLE_BACKGROUNDS = [
+  "light_gray",
+  "warm_beige",
+  "pale_blue",
+  "pale_pink",
+] as const satisfies readonly IeiPhotoBackgroundType[];
+
+export function supportsBackgroundGradient(
+  type: IeiPhotoBackgroundType,
+): boolean {
+  return IEI_PHOTO_GRADIENT_CAPABLE_BACKGROUNDS.includes(
+    type as (typeof IEI_PHOTO_GRADIENT_CAPABLE_BACKGROUNDS)[number],
+  );
+}
+
 /** UI 表示用（表示順・ラベル・スウォッチCSS）。 */
 export const IEI_PHOTO_BACKGROUND_OPTIONS: {
   type: IeiPhotoBackgroundType;
@@ -46,6 +61,16 @@ export const IEI_PHOTO_BACKGROUND_SOLID_COLORS: Record<
   pale_blue: "#dfeef9",
   pale_pink: "#f8e2ea",
   auto: "#f3f1ec",
+};
+
+/** グレー/ベージュ/ブルー/ピンクのグラデーション fallback 色。 */
+export const IEI_PHOTO_BACKGROUND_COLOR_GRADIENTS: Partial<
+  Record<IeiPhotoBackgroundType, { from: string; to: string }>
+> = {
+  light_gray: { from: "#f7f8fa", to: "#dfe3e8" },
+  warm_beige: { from: "#fbf5ec", to: "#e8dac8" },
+  pale_blue: { from: "#eef8ff", to: "#cddff1" },
+  pale_pink: { from: "#fff0f5", to: "#efd0dc" },
 };
 
 /** 出力種別 → 背景画像の向き。 */

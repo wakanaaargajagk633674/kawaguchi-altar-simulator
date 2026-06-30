@@ -9,6 +9,7 @@
  *  - mode:         advanced | portrait | auto
  *  - clothingStyle: none | mourning_japanese | mourning_western | suit | casual
  *  - backgroundType: sky | light_gray | warm_beige | pale_blue | pale_pink | auto
+ *  - backgroundGradient: true | false
  *  - prompt:       任意の追加指示
  *
  * 成功: image/png（生成画像バイナリ）
@@ -44,6 +45,12 @@ const VALID_BACKGROUND_TYPES: IeiPhotoBackgroundType[] = [
   "pale_blue",
   "pale_pink",
   "auto",
+];
+const GRADIENT_BACKGROUND_TYPES: IeiPhotoBackgroundType[] = [
+  "light_gray",
+  "warm_beige",
+  "pale_blue",
+  "pale_pink",
 ];
 const VALID_CLOTHING: IeiPhotoClothingStyle[] = [
   "none",
@@ -112,6 +119,9 @@ export async function POST(request: Request): Promise<Response> {
   )
     ? (backgroundRaw as IeiPhotoBackgroundType)
     : "auto";
+  const backgroundGradient =
+    String(form.get("backgroundGradient") ?? "false") === "true" &&
+    GRADIENT_BACKGROUND_TYPES.includes(backgroundType);
 
   const extraPromptRaw = form.get("prompt");
   const extraPrompt =
@@ -122,6 +132,7 @@ export async function POST(request: Request): Promise<Response> {
     clothingStyle,
     pose,
     backgroundType,
+    backgroundGradient,
     extraPrompt,
   );
 

@@ -19,6 +19,7 @@ import {
 import { createZipBlob, type ZipEntry } from "./zip";
 import { clampAdjustments } from "./adjustments";
 import {
+  IEI_PHOTO_BACKGROUND_COLOR_GRADIENTS,
   IEI_PHOTO_BACKGROUND_GRADIENT,
   IEI_PHOTO_BACKGROUND_SOLID_COLORS,
   IEI_PHOTO_DEFAULT_BACKGROUND,
@@ -68,6 +69,16 @@ function fillBackground(
     gradient.addColorStop(0, IEI_PHOTO_BACKGROUND_GRADIENT.from);
     gradient.addColorStop(1, IEI_PHOTO_BACKGROUND_GRADIENT.to);
     ctx.fillStyle = gradient;
+  } else if (settings.gradient) {
+    const colors = IEI_PHOTO_BACKGROUND_COLOR_GRADIENTS[settings.type];
+    if (colors) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, colors.from);
+      gradient.addColorStop(1, colors.to);
+      ctx.fillStyle = gradient;
+    } else {
+      ctx.fillStyle = BASE_BG_COLOR;
+    }
   } else if (isPhotoBackgroundType(settings.type)) {
     // 写真背景なのに画像が未ロード（読み込み失敗等）の場合は白で代替。
     ctx.fillStyle = BASE_BG_COLOR;
