@@ -208,8 +208,6 @@ export default function IeiPhotoPage() {
   const [allowAuto, setAllowAuto] = useState<boolean>(false);
   const [aiProcessing, setAiProcessing] = useState<boolean>(false);
   const [aiEnhancedUrl, setAiEnhancedUrl] = useState<string | null>(null);
-  const [sizeDown, setSizeDown] = useState<boolean>(false);
-  const [createClothing, setCreateClothing] = useState<boolean>(false);
   // 脱AI処理（肌なじませ。AI生成後画像にのみ適用）
   const [deAiStrength, setDeAiStrength] =
     useState<IeiPhotoDeAiStrength>("standard");
@@ -498,13 +496,6 @@ export default function IeiPhotoPage() {
     setPose(next);
   }, []);
 
-  const handleSizeDownChange = useCallback((next: boolean) => {
-    setSizeDown(next);
-    if (!next) {
-      setCreateClothing(false);
-    }
-  }, []);
-
   /**
    * AI画像処理（高度AI補正 / AI肖像生成 / AIに全てお任せ）を実行する。
    * 現在の基準写真 Canvas を /api/iei-photo/ai-image へ送り、AI結果画像を
@@ -557,10 +548,6 @@ export default function IeiPhotoPage() {
             eyeBrightness,
             teethVisibility,
           },
-          {
-            sizeDown,
-            createClothing: sizeDown && createClothing,
-          },
         );
         const url = URL.createObjectURL(blob);
         pendingUrl = url;
@@ -612,8 +599,6 @@ export default function IeiPhotoPage() {
       allowAuto,
       clothingStyle,
       pose,
-      sizeDown,
-      createClothing,
       expressionEnabled,
       smileLevel,
       eyeBrightness,
@@ -957,8 +942,12 @@ export default function IeiPhotoPage() {
   const previewAspect = `${previewSize.pixelGuide.width} / ${previewSize.pixelGuide.height}`;
   const guidesVisible = previewKind === "base" && showGuides;
 
-  // 補正スライダーは内部 70-130（100=無補正）を ±30 の符号付きで表示
+  // 明るさ系は100基準の差分表示。ズームは100未満を縮小量として表示する。
   const signed = (v: number) => `${v - 100 > 0 ? "+" : ""}${v - 100}`;
+  const zoomLabel = (v: number) => {
+    if (v < 100) return `-${100 - v}%`;
+    return `${v}%`;
+  };
   const signedPosition = (v: number) => `${v > 0 ? "+" : ""}${v}`;
 
   // 仕上げ候補（ワンタップ・プリセット）
@@ -1213,7 +1202,7 @@ export default function IeiPhotoPage() {
                     value={adjustments.zoom}
                     min={IEI_PHOTO_ADJUSTMENT_RANGES.zoom.min}
                     max={IEI_PHOTO_ADJUSTMENT_RANGES.zoom.max}
-                    valueLabel={`${adjustments.zoom}%`}
+                    valueLabel={zoomLabel(adjustments.zoom)}
                     disabled={controlsDisabled}
                     onChange={(v) => handleAdjustmentChange("zoom", v)}
                   />
@@ -1348,52 +1337,6 @@ export default function IeiPhotoPage() {
                       disabled={controlsDisabled || isProcessing || aiProcessing}
                       onChange={handleChangePose}
                     />
-                  </div>
-
-                  <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-3">
-                    <StudioSectionHeading
-                      icon={<IconCrop className="h-4 w-4" />}
-                      title="顔アップ補正"
-                    />
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={sizeDown}
-                          disabled={
-                            controlsDisabled || isProcessing || aiProcessing
-                          }
-                          onChange={(e) =>
-                            handleSizeDownChange(e.target.checked)
-                          }
-                          className="h-4 w-4 accent-slate-800 disabled:opacity-50"
-                        />
-                        サイズを小さく
-                      </label>
-                      <label
-                        className={
-                          sizeDown
-                            ? "flex items-center gap-2 text-sm font-semibold text-slate-700"
-                            : "flex items-center gap-2 text-sm font-semibold text-slate-500 opacity-50"
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={sizeDown && createClothing}
-                          disabled={
-                            !sizeDown ||
-                            controlsDisabled ||
-                            isProcessing ||
-                            aiProcessing
-                          }
-                          onChange={(e) =>
-                            setCreateClothing(e.target.checked)
-                          }
-                          className="h-4 w-4 accent-slate-800 disabled:opacity-50"
-                        />
-                        服も作成
-                      </label>
-                    </div>
                   </div>
 
                   {mode === "AI_PORTRAIT" && (

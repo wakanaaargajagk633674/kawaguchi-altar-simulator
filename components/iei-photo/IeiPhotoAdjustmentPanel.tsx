@@ -77,10 +77,13 @@ export default function IeiPhotoAdjustmentPanel({
           const range = IEI_PHOTO_ADJUSTMENT_RANGES[key];
           const value = adjustments[key];
           const isOffset = key === "offsetX" || key === "offsetY";
+          const isZoom = key === "zoom";
           // 位置は符号付き（例: +10 / -8）、その他は単位付き（例: 105%）
           const valueLabel = isOffset
             ? `${value > 0 ? "+" : ""}${value}`
-            : `${value}${slider.unit}`;
+            : isZoom && value < 100
+              ? `-${100 - value}%`
+              : `${value}${slider.unit}`;
 
           return (
             <div key={key}>

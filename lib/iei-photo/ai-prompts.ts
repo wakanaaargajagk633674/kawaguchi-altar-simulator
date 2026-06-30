@@ -15,7 +15,6 @@ import type {
   IeiPhotoBackgroundType,
   IeiPhotoClothingStyle,
   IeiPhotoExpressionSettings,
-  IeiPhotoFramingSettings,
   IeiPhotoPose,
 } from "./types";
 
@@ -153,28 +152,22 @@ function buildExpressionPrompt(
   return parts.join(" ");
 }
 
-function buildFramingPrompt(
-  framing?: IeiPhotoFramingSettings,
+function buildCompositionPrompt(
   clothingStyle: IeiPhotoClothingStyle = "none",
 ): string {
-  if (!framing?.sizeDown) {
-    return "";
-  }
-
   const parts: string[] = [
-    "元写真が顔のアップで肩から下が写っていない場合は、人物を少し小さく配置し、頭頂から肩・胸元まで入る自然な上半身の遺影写真構図にしてください。顔だけが大きくなりすぎないよう、頭部と肩幅の比率を自然に整えてください。顔の特徴、髪型、眼鏡、ほくろ、シワ、表情の印象は維持してください。",
-    "元写真に服、襟元、肩が見えている場合は、その服装と形をできるだけ維持してください。",
+    "入力画像の人物サイズ、顔の大きさ、顔の位置、余白、構図をできるだけ維持してください。構図・サイズ調整で人物が小さめに配置されている場合も、その比率のまま遺影写真として仕上げ、AI生成時に顔だけを勝手に拡大しないでください。",
+    "キャンバス内で肩、胸元、服の一部が不足している場合は、顔の大きさや位置を変えずに、自然な首元、肩、上半身、服の足りない部分だけを補ってください。元写真に服、襟元、肩が見えている場合は、その服装と形をできるだけ維持してください。",
   ];
 
-  if (framing.createClothing) {
+  if (clothingStyle !== "none") {
     parts.push(
-      "元写真に服や肩がほとんど写っていない場合のみ、自然な首元、肩、上半身と服を補ってください。すでに服が見えている場合は服を作り替えないでください。",
+      "服装指定を反映する場合も、顔部分のサイズ、顔の位置、表情、本人らしさはそのまま保ち、服装だけを自然に当てはめてください。",
     );
-    if (clothingStyle === "none") {
-      parts.push(
-        "服装指定がない場合は、遺影写真として落ち着いた濃色のフォーマル寄りの上着にしてください。派手な柄や装飾は避けてください。",
-      );
-    }
+  } else {
+    parts.push(
+      "服装指定がない場合は、見えている服装を維持し、不足部分は同じ雰囲気で自然に補ってください。服がほとんど見えない場合のみ、遺影写真として落ち着いたフォーマル寄りの服を自然に補ってください。",
+    );
   }
 
   return parts.join(" ");
@@ -191,7 +184,6 @@ export function buildAiPrompt(
   backgroundType: IeiPhotoBackgroundType = "auto",
   backgroundGradient = false,
   expression?: IeiPhotoExpressionSettings,
-  framing?: IeiPhotoFramingSettings,
   extraPrompt?: string,
 ): string {
   const parts: string[] = [IEI_PHOTO_AI_BASE_PROMPTS[mode]];
@@ -205,10 +197,7 @@ export function buildAiPrompt(
   if (clothing) {
     parts.push(clothing);
   }
-  const framingText = buildFramingPrompt(framing, clothingStyle);
-  if (framingText) {
-    parts.push(framingText);
-  }
+  parts.push(buildCompositionPrompt(clothingStyle));
   const poseText = IEI_PHOTO_POSE_PROMPTS[pose];
   if (poseText) {
     parts.push(poseText);

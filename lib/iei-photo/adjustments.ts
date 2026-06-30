@@ -17,7 +17,7 @@ export const IEI_PHOTO_ADJUSTMENT_RANGES: Record<
   brightness: { min: 70, max: 130, step: 1 },
   contrast: { min: 70, max: 130, step: 1 },
   saturation: { min: 70, max: 130, step: 1 },
-  zoom: { min: 100, max: 180, step: 1 },
+  zoom: { min: 50, max: 180, step: 1 },
   offsetX: { min: -50, max: 50, step: 1 },
   offsetY: { min: -50, max: 50, step: 1 },
 };

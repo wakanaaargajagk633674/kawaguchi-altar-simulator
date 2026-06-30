@@ -14,7 +14,6 @@ import type {
   IeiPhotoBackgroundType,
   IeiPhotoClothingStyle,
   IeiPhotoExpressionSettings,
-  IeiPhotoFramingSettings,
   IeiPhotoPose,
 } from "./types";
 
@@ -96,7 +95,6 @@ export async function requestAiImage(
   backgroundType: IeiPhotoBackgroundType,
   backgroundGradient: boolean,
   expression: IeiPhotoExpressionSettings,
-  framing: IeiPhotoFramingSettings,
   extraPrompt?: string,
 ): Promise<Blob> {
   const imageBlob = await downscaleCanvasForAi(baseCanvas);
@@ -112,11 +110,6 @@ export async function requestAiImage(
   form.append("smileLevel", expression.smile);
   form.append("eyeBrightness", expression.eyeBrightness ? "true" : "false");
   form.append("teethVisibility", expression.teethVisibility);
-  form.append("sizeDown", framing.sizeDown ? "true" : "false");
-  form.append(
-    "createClothing",
-    framing.sizeDown && framing.createClothing ? "true" : "false",
-  );
   if (extraPrompt && extraPrompt.trim()) {
     form.append("prompt", extraPrompt.trim());
   }
