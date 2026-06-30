@@ -14,6 +14,8 @@
  *  - smileLevel:   slight | natural | broad
  *  - eyeBrightness: true | false
  *  - teethVisibility: closed | slight | clear
+ *  - sizeDown:     true | false
+ *  - createClothing: true | false
  *  - prompt:       任意の追加指示
  *
  * 成功: image/png（生成画像バイナリ）
@@ -31,6 +33,7 @@ import type {
   IeiPhotoBackgroundType,
   IeiPhotoClothingStyle,
   IeiPhotoExpressionSettings,
+  IeiPhotoFramingSettings,
   IeiPhotoPose,
   IeiPhotoSmileLevel,
   IeiPhotoTeethVisibility,
@@ -162,6 +165,12 @@ export async function POST(request: Request): Promise<Response> {
       "closed",
     ),
   };
+  const sizeDown = String(form.get("sizeDown") ?? "false") === "true";
+  const framing: IeiPhotoFramingSettings = {
+    sizeDown,
+    createClothing:
+      sizeDown && String(form.get("createClothing") ?? "false") === "true",
+  };
 
   const extraPromptRaw = form.get("prompt");
   const extraPrompt =
@@ -174,6 +183,7 @@ export async function POST(request: Request): Promise<Response> {
     backgroundType,
     backgroundGradient,
     expression,
+    framing,
     extraPrompt,
   );
 

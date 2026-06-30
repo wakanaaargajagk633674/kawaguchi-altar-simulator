@@ -154,6 +154,15 @@ export type IeiPhotoExpressionSettings = {
 };
 
 /**
+ * 顔アップ写真向けのAI構図補正。
+ * sizeDown=false の場合は構図補正指示を追加しない。
+ */
+export type IeiPhotoFramingSettings = {
+  sizeDown: boolean;
+  createClothing: boolean;
+};
+
+/**
  * AI生成後チェック項目（目視確認用）。
  * 現状は自動判定せず「要確認」を表示するだけ。将来、自動判定で status を更新できる設計。
  */
