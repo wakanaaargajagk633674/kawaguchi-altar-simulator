@@ -138,14 +138,19 @@ export type IeiPhotoAiResultMode = IeiPhotoAiImageMode | null;
 /** 脱AI処理（肌なじませ）の強度。 */
 export type IeiPhotoDeAiStrength = "light" | "standard" | "strong";
 
+export type IeiPhotoSmileLevel = "slight" | "natural" | "broad";
+
+export type IeiPhotoTeethVisibility = "closed" | "slight" | "clear";
+
 /**
- * AI生成時に使う表情の微調整値。
- * 50/40付近は元写真の印象を優先し、極端な顔の作り替えは避ける。
+ * AI生成時に使う表情の微調整設定。
+ * enabled=false の場合は表情指示を追加せず、元写真の表情維持を優先する。
  */
 export type IeiPhotoExpressionSettings = {
-  smile: number;
-  eyeBrightness: number;
-  teethAdjust: boolean;
+  enabled: boolean;
+  smile: IeiPhotoSmileLevel;
+  eyeBrightness: boolean;
+  teethVisibility: IeiPhotoTeethVisibility;
 };
 
 /**

@@ -10,9 +10,10 @@
  *  - clothingStyle: none | mourning_japanese | mourning_western | suit | casual
  *  - backgroundType: sky | light_gray | warm_beige | pale_blue | pale_pink | auto
  *  - backgroundGradient: true | false
- *  - smile:        0-100（既定 50）
- *  - eyeBrightness: 0-100（既定 40）
- *  - teethAdjust:  true | false
+ *  - expressionEnabled: true | false
+ *  - smileLevel:   slight | natural | broad
+ *  - eyeBrightness: true | false
+ *  - teethVisibility: closed | slight | clear
  *  - prompt:       任意の追加指示
  *
  * 成功: image/png（生成画像バイナリ）
@@ -31,6 +32,8 @@ import type {
   IeiPhotoClothingStyle,
   IeiPhotoExpressionSettings,
   IeiPhotoPose,
+  IeiPhotoSmileLevel,
+  IeiPhotoTeethVisibility,
 } from "@/lib/iei-photo/types";
 
 // 画像生成は時間がかかるため、関数の上限を最大（300秒）にする。
@@ -70,22 +73,31 @@ const VALID_POSE: IeiPhotoPose[] = [
   "slight_left",
   "upright",
 ];
+const VALID_SMILE_LEVELS: IeiPhotoSmileLevel[] = [
+  "slight",
+  "natural",
+  "broad",
+];
+const VALID_TEETH_VISIBILITY: IeiPhotoTeethVisibility[] = [
+  "closed",
+  "slight",
+  "clear",
+];
 
 function jsonError(message: string, status: number): Response {
   return Response.json({ ok: false, message }, { status });
 }
 
-function readRangeNumber(
+function readOption<T extends string>(
   form: FormData,
   fieldName: string,
-  defaultValue: number,
-): number {
+  validValues: readonly T[],
+  defaultValue: T,
+): T {
   const raw = form.get(fieldName);
-  const value = typeof raw === "string" ? Number(raw) : NaN;
-  if (!Number.isFinite(value)) {
-    return defaultValue;
-  }
-  return Math.min(100, Math.max(0, Math.round(value)));
+  return typeof raw === "string" && validValues.includes(raw as T)
+    ? (raw as T)
+    : defaultValue;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -140,9 +152,15 @@ export async function POST(request: Request): Promise<Response> {
     String(form.get("backgroundGradient") ?? "false") === "true" &&
     GRADIENT_BACKGROUND_TYPES.includes(backgroundType);
   const expression: IeiPhotoExpressionSettings = {
-    smile: readRangeNumber(form, "smile", 50),
-    eyeBrightness: readRangeNumber(form, "eyeBrightness", 40),
-    teethAdjust: String(form.get("teethAdjust") ?? "false") === "true",
+    enabled: String(form.get("expressionEnabled") ?? "false") === "true",
+    smile: readOption(form, "smileLevel", VALID_SMILE_LEVELS, "natural"),
+    eyeBrightness: String(form.get("eyeBrightness") ?? "false") === "true",
+    teethVisibility: readOption(
+      form,
+      "teethVisibility",
+      VALID_TEETH_VISIBILITY,
+      "closed",
+    ),
   };
 
   const extraPromptRaw = form.get("prompt");

@@ -115,37 +115,37 @@ export const IEI_PHOTO_POSE_ORDER: IeiPhotoPose[] = [
 function buildExpressionPrompt(
   expression?: IeiPhotoExpressionSettings,
 ): string {
-  if (!expression) {
+  if (!expression?.enabled) {
     return "";
   }
 
   const parts: string[] = [
-    "表情の調整は控えめに行い、本人らしさ、顔の輪郭、目や口の形、年齢感を変えないでください。",
+    "表情の調整は元写真の人物らしさを最優先し、顔の輪郭、目や口の形、年齢感を大きく変えない範囲で自然に行ってください。",
   ];
 
-  if (expression.smile >= 65) {
+  if (expression.smile === "slight") {
+    parts.push("口元をほんの少しだけやわらげ、控えめで穏やかな微笑みにしてください。");
+  } else if (expression.smile === "natural") {
+    parts.push("遺影写真として自然で品のある微笑みにしてください。笑顔を強くしすぎないでください。");
+  } else if (expression.smile === "broad") {
+    parts.push("明るく満面の笑みに近い表情にしてください。ただし別人のような口元や過剰な笑顔にはしないでください。");
+  }
+
+  if (expression.eyeBrightness) {
     parts.push(
-      "口元をわずかにやわらげ、遺影写真として自然で品のある微笑みにしてください。大きな笑顔や別人のような口元にはしないでください。",
-    );
-  } else if (expression.smile <= 35) {
-    parts.push(
-      "笑顔を強めず、口元は落ち着いた穏やかな表情にしてください。不機嫌、無表情すぎる印象にはしないでください。",
+      "目元の明るさは自動で自然に整え、清潔感のあるハイライトを少し加えてください。目の形、大きさ、視線は変えないでください。",
     );
   }
 
-  if (expression.eyeBrightness >= 55) {
+  if (expression.teethVisibility === "closed") {
+    parts.push("口は自然に閉じ、歯は見せない表情にしてください。");
+  } else if (expression.teethVisibility === "slight") {
     parts.push(
-      "目元を少し明るく見せ、自然なハイライトと清潔感を加えてください。目の形、大きさ、視線は変えないでください。",
+      "歯は少しだけ見える程度にし、口元を自然に整えてください。不自然な歯並びや作り替えは避けてください。",
     );
-  } else if (expression.eyeBrightness <= 25) {
+  } else if (expression.teethVisibility === "clear") {
     parts.push(
-      "目元の明るさは控えめにし、落ち着いた印象を保ってください。暗く沈んだ目元にはしないでください。",
-    );
-  }
-
-  if (expression.teethAdjust) {
-    parts.push(
-      "歯が元写真に見えている場合のみ自然に整えてください。元写真で歯が見えていない場合は歯を描き足さないでください。",
+      "歯がしっかり見える明るい表情にしてください。ただし歯や口元が不自然にならないよう、本人らしさを保ってください。",
     );
   }
 

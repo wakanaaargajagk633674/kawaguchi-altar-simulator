@@ -106,9 +106,10 @@ export async function requestAiImage(
   form.append("pose", pose);
   form.append("backgroundType", backgroundType);
   form.append("backgroundGradient", backgroundGradient ? "true" : "false");
-  form.append("smile", String(expression.smile));
-  form.append("eyeBrightness", String(expression.eyeBrightness));
-  form.append("teethAdjust", expression.teethAdjust ? "true" : "false");
+  form.append("expressionEnabled", expression.enabled ? "true" : "false");
+  form.append("smileLevel", expression.smile);
+  form.append("eyeBrightness", expression.eyeBrightness ? "true" : "false");
+  form.append("teethVisibility", expression.teethVisibility);
   if (extraPrompt && extraPrompt.trim()) {
     form.append("prompt", extraPrompt.trim());
   }

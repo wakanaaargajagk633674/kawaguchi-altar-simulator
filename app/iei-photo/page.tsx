@@ -88,6 +88,8 @@ import type {
   IeiPhotoMode,
   IeiPhotoPose,
   IeiPhotoQualityCheckItem,
+  IeiPhotoSmileLevel,
+  IeiPhotoTeethVisibility,
 } from "@/lib/iei-photo/types";
 
 /** 生成前の品質チェック項目（未判定） */
@@ -222,10 +224,13 @@ export default function IeiPhotoPage() {
   const [showAiDetails, setShowAiDetails] = useState<boolean>(false);
   // 顔を中心に配置（ON時は横位置・縦位置を中央へ戻す表示トグル）
   const [faceCenter, setFaceCenter] = useState<boolean>(true);
-  // 表情の調整（AI生成時のプロンプトへ反映）
-  const [smile, setSmile] = useState<number>(50);
-  const [eyeBrightness, setEyeBrightness] = useState<number>(40);
-  const [teethAdjust, setTeethAdjust] = useState<boolean>(false);
+  // 表情の調整（チェックON時のみAI生成時のプロンプトへ反映）
+  const [expressionEnabled, setExpressionEnabled] = useState<boolean>(false);
+  const [smileLevel, setSmileLevel] =
+    useState<IeiPhotoSmileLevel>("natural");
+  const [eyeBrightness, setEyeBrightness] = useState<boolean>(false);
+  const [teethVisibility, setTeethVisibility] =
+    useState<IeiPhotoTeethVisibility>("closed");
 
   // 読み込み済み元画像 / 基準写真（親データ）
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -537,7 +542,12 @@ export default function IeiPhotoPage() {
           background.type,
           supportsBackgroundGradient(background.type) &&
             Boolean(background.gradient),
-          { smile, eyeBrightness, teethAdjust },
+          {
+            enabled: expressionEnabled,
+            smile: smileLevel,
+            eyeBrightness,
+            teethVisibility,
+          },
         );
         const url = URL.createObjectURL(blob);
         pendingUrl = url;
@@ -589,9 +599,10 @@ export default function IeiPhotoPage() {
       allowAuto,
       clothingStyle,
       pose,
-      smile,
+      expressionEnabled,
+      smileLevel,
       eyeBrightness,
-      teethAdjust,
+      teethVisibility,
       generatePreview,
       computeEffective,
       adjustments,
@@ -910,6 +921,21 @@ export default function IeiPhotoPage() {
     value: p,
     label: IEI_PHOTO_POSE_LABELS[p],
   }));
+
+  const smileOptions: { value: IeiPhotoSmileLevel; label: string }[] = [
+    { value: "slight", label: "少し微笑み" },
+    { value: "natural", label: "自然な微笑み" },
+    { value: "broad", label: "満面の笑み" },
+  ];
+
+  const teethVisibilityOptions: {
+    value: IeiPhotoTeethVisibility;
+    label: string;
+  }[] = [
+    { value: "closed", label: "口を閉じる" },
+    { value: "slight", label: "少し歯を出す" },
+    { value: "clear", label: "歯をしっかり見せる" },
+  ];
 
   // 仕上がりプレビュー枠の縦横比
   const previewSize = IEI_PHOTO_EXPORT_SIZES[previewKind];
@@ -1399,30 +1425,71 @@ export default function IeiPhotoPage() {
                       icon={<IconSmile className="h-4 w-4" />}
                       title="表情の調整"
                     />
-                    <StudioSlider
-                      label="自然な微笑み"
-                      value={smile}
-                      min={0}
-                      max={100}
-                      valueLabel={`${smile}`}
-                      disabled={controlsDisabled || isProcessing || aiProcessing}
-                      onChange={setSmile}
-                    />
-                    <StudioSlider
-                      label="目元の明るさ"
-                      value={eyeBrightness}
-                      min={0}
-                      max={100}
-                      valueLabel={`${eyeBrightness}`}
-                      disabled={controlsDisabled || isProcessing || aiProcessing}
-                      onChange={setEyeBrightness}
-                    />
-                    <StudioToggle
-                      label="歯の見え方を調整"
-                      checked={teethAdjust}
-                      disabled={controlsDisabled || isProcessing || aiProcessing}
-                      onChange={setTeethAdjust}
-                    />
+                    <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={expressionEnabled}
+                        disabled={controlsDisabled || isProcessing || aiProcessing}
+                        onChange={(e) => setExpressionEnabled(e.target.checked)}
+                        className="h-4 w-4 accent-slate-800 disabled:opacity-50"
+                      />
+                      表情を調整する
+                    </label>
+                    <div
+                      className={
+                        expressionEnabled
+                          ? "space-y-3"
+                          : "space-y-3 opacity-50"
+                      }
+                    >
+                      <div>
+                        <p className="mb-2 text-xs font-semibold text-slate-600">
+                          微笑み
+                        </p>
+                        <StudioPillGroup
+                          options={smileOptions}
+                          value={smileLevel}
+                          disabled={
+                            !expressionEnabled ||
+                            controlsDisabled ||
+                            isProcessing ||
+                            aiProcessing
+                          }
+                          onChange={setSmileLevel}
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={eyeBrightness}
+                          disabled={
+                            !expressionEnabled ||
+                            controlsDisabled ||
+                            isProcessing ||
+                            aiProcessing
+                          }
+                          onChange={(e) => setEyeBrightness(e.target.checked)}
+                          className="h-4 w-4 accent-slate-800 disabled:opacity-50"
+                        />
+                        目元の明るさを自動調整
+                      </label>
+                      <div>
+                        <p className="mb-2 text-xs font-semibold text-slate-600">
+                          歯の見え方
+                        </p>
+                        <StudioPillGroup
+                          options={teethVisibilityOptions}
+                          value={teethVisibility}
+                          disabled={
+                            !expressionEnabled ||
+                            controlsDisabled ||
+                            isProcessing ||
+                            aiProcessing
+                          }
+                          onChange={setTeethVisibility}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
