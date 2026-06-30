@@ -7,12 +7,12 @@
  * - 服装変更はAI処理時のみ。clothingStyle="none" のときは服装指示を追加しない。
  *
  * プロンプト統合順:
- *   1. 本人らしさ維持 → 2. 顔の特徴維持 → 3. 背景や明るさ補正 → 4. 服装指定
- * 1〜3は各モードの基本プロンプトに含めており、4（服装）を末尾に追加する。
+ *   1. 本人らしさ維持 → 2. 顔の特徴維持 → 3. 背景テーマ → 4. 服装指定
  */
 
 import type {
   IeiPhotoAiImageMode,
+  IeiPhotoBackgroundType,
   IeiPhotoClothingStyle,
   IeiPhotoPose,
 } from "./types";
@@ -25,6 +25,30 @@ export const IEI_PHOTO_AI_BASE_PROMPTS: Record<IeiPhotoAiImageMode, string> = {
     "元写真の人物を参考に、遺影写真として自然で品のある肖像写真を生成してください。本人らしさを最優先し、顔の特徴、髪型、眼鏡、ほくろ、シワ、表情の印象を可能な限り維持してください。強い白飛びや暗さを補い、落ち着いた背景、自然な照明、上半身の構図で仕上げてください。過度な若返り、別人化、過剰な美肌化、服や顔の不自然な作り替えは避けてください。",
   auto:
     "AIに全てお任せします。元写真の人物を参考に、遺影写真として最も自然で品のある仕上がりになるよう、背景、明るさ、色味、構図、服装、全体の印象を総合的に整えてください。本人らしさを最優先し、顔の特徴、髪型、眼鏡、ほくろ、シワ、表情の印象を可能な限り維持してください。白飛び、強い影、背景の乱れ、服装の違和感を自然に補い、遺影写真として落ち着いた印象にしてください。ただし、過度な若返り、別人化、過剰な美肌化、不自然な顔の作り替えは避けてください。",
+};
+
+/** 背景テーマごとの追加指示。背景は別画像合成ではなく AI に生成させる。 */
+export const IEI_PHOTO_BACKGROUND_PROMPTS: Record<
+  IeiPhotoBackgroundType,
+  string
+> = {
+  sky: "背景は穏やかで明るい空の雰囲気にしてください。人物の輪郭になじむ自然な光で、遺影写真として落ち着いた品のある背景にしてください。",
+  light_gray:
+    "背景は明るく落ち着いたグレー系にしてください。無地に近く、人物が自然に引き立つ遺影写真向けの背景にしてください。",
+  warm_beige:
+    "背景は淡いベージュ系にしてください。温かみがあり、派手すぎず、人物の輪郭となじむ自然な背景にしてください。",
+  pale_blue:
+    "背景は淡いブルー系にしてください。清潔感があり、人物が自然に引き立つ遺影写真向けの背景にしてください。",
+  pale_pink:
+    "背景は淡いピンク系にしてください。柔らかく上品で、人物の雰囲気を損なわない自然な背景にしてください。",
+  auto:
+    "背景はAIが元写真の人物、服装、明るさに合わせて、遺影写真として最も自然で品のあるものを生成してください。",
+  white:
+    "背景は白を基調にした清潔で落ち着いた無地に近い背景にしてください。",
+  gradient:
+    "背景は淡いグラデーションにしてください。人物の輪郭になじむ自然で上品な背景にしてください。",
+  photo:
+    "背景は遺影写真として自然で品のある淡い背景にしてください。既存の別背景画像を貼り付けたような不自然な合成は避けてください。",
 };
 
 /** 服装ごとの追加指示（none は追加なし）。 */
@@ -95,9 +119,11 @@ export function buildAiPrompt(
   mode: IeiPhotoAiImageMode,
   clothingStyle: IeiPhotoClothingStyle,
   pose: IeiPhotoPose,
+  backgroundType: IeiPhotoBackgroundType = "auto",
   extraPrompt?: string,
 ): string {
   const parts: string[] = [IEI_PHOTO_AI_BASE_PROMPTS[mode]];
+  parts.push(IEI_PHOTO_BACKGROUND_PROMPTS[backgroundType]);
   const clothing = IEI_PHOTO_CLOTHING_PROMPTS[clothingStyle];
   if (clothing) {
     parts.push(clothing);

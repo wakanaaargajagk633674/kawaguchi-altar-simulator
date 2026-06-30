@@ -103,12 +103,6 @@ export type IeiPhotoAdjustments = {
 };
 
 /**
- * 性別。背景写真の自動選択に使う（男性→ブルー / 女性→ピンク）。
- * AIによる人物推定は行わず、利用者が手動で選ぶ。
- */
-export type IeiPhotoGender = "male" | "female";
-
-/**
  * 服装選択（AIモードのみ有効）。
  * 通常生成（AI標準生成 / rembg+Canvas）では服装変更は行わない。
  */
@@ -156,25 +150,24 @@ export type IeiPhotoAiCheckItem = {
 
 /**
  * 背景設定。
- * 切り抜いた人物を、選択した背景の上に Canvas 合成して出力する。
- * - 単色 / グラデーション: 全面を塗る。
- * - photo: 性別に連動した写真背景（男性=ブルー / 女性=ピンク）。出力サイズに応じて
- *   縦長（手札・四切）/16:9（モニタ）画像を使い分ける。
- * - sky: 空の写真背景（16:9専用）。縦サイズでは性別の写真背景にフォールバックする。
+ * 現行UIでは、選択した背景テーマを AI 画像生成プロンプトに渡す。
+ * 別背景画像の切り抜き合成は行わない。
+ *
+ * white / gradient / photo は旧UI互換の内部値。新しい画面には表示しない。
  */
 export type IeiPhotoBackgroundType =
-  | "white" // 白
+  | "sky" // 空
   | "light_gray" // 薄いグレー
   | "warm_beige" // 淡いベージュ
   | "pale_blue" // 淡いブルー
+  | "pale_pink" // 淡いピンク
+  | "auto" // AIにお任せ
+  | "white" // 旧UI互換: 白
   | "gradient" // グラデーション
-  | "photo" // 写真背景（性別連動: 男性=ブルー / 女性=ピンク）
-  | "sky"; // 空（16:9専用。縦は性別の写真背景にフォールバック）
+  | "photo"; // 旧UI互換: 写真背景
 
 export type IeiPhotoBackgroundSettings = {
   type: IeiPhotoBackgroundType;
-  /** photo/sky のときに使う性別。未指定時は male（ブルー）扱い。 */
-  gender?: IeiPhotoGender;
 };
 
 /**

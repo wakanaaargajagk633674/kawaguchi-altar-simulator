@@ -8,6 +8,7 @@
  *  - image:        加工対象画像（基準写真など。クライアント側で長辺1600pxに縮小済み想定）
  *  - mode:         advanced | portrait | auto
  *  - clothingStyle: none | mourning_japanese | mourning_western | suit | casual
+ *  - backgroundType: sky | light_gray | warm_beige | pale_blue | pale_pink | auto
  *  - prompt:       任意の追加指示
  *
  * 成功: image/png（生成画像バイナリ）
@@ -22,6 +23,7 @@
 import { buildAiPrompt } from "@/lib/iei-photo/ai-prompts";
 import type {
   IeiPhotoAiImageMode,
+  IeiPhotoBackgroundType,
   IeiPhotoClothingStyle,
   IeiPhotoPose,
 } from "@/lib/iei-photo/types";
@@ -35,6 +37,14 @@ const DEFAULT_MODEL = "gpt-image-2";
 const OPENAI_FETCH_TIMEOUT_MS = 240_000;
 
 const VALID_MODES: IeiPhotoAiImageMode[] = ["advanced", "portrait", "auto"];
+const VALID_BACKGROUND_TYPES: IeiPhotoBackgroundType[] = [
+  "sky",
+  "light_gray",
+  "warm_beige",
+  "pale_blue",
+  "pale_pink",
+  "auto",
+];
 const VALID_CLOTHING: IeiPhotoClothingStyle[] = [
   "none",
   "mourning_japanese",
@@ -96,11 +106,24 @@ export async function POST(request: Request): Promise<Response> {
     ? (poseRaw as IeiPhotoPose)
     : "none";
 
+  const backgroundRaw = String(form.get("backgroundType") ?? "auto");
+  const backgroundType = VALID_BACKGROUND_TYPES.includes(
+    backgroundRaw as IeiPhotoBackgroundType,
+  )
+    ? (backgroundRaw as IeiPhotoBackgroundType)
+    : "auto";
+
   const extraPromptRaw = form.get("prompt");
   const extraPrompt =
     typeof extraPromptRaw === "string" ? extraPromptRaw : undefined;
 
-  const prompt = buildAiPrompt(mode, clothingStyle, pose, extraPrompt);
+  const prompt = buildAiPrompt(
+    mode,
+    clothingStyle,
+    pose,
+    backgroundType,
+    extraPrompt,
+  );
 
   // OpenAI Images edit へ転送する multipart を組み立てる。
   const upstreamForm = new FormData();
@@ -152,7 +175,9 @@ export async function POST(request: Request): Promise<Response> {
       message = `OpenAI がエラーを返しました（HTTP ${status}）。時間をおいて再試行してください。`;
     }
     // ログは状態コードのみ（本文・キー・base64 は出さない）。
-    console.log(`[iei-photo/ai-image] openai error status=${status} mode=${mode}`);
+    console.log(
+      `[iei-photo/ai-image] openai error status=${status} mode=${mode}`,
+    );
     return jsonError(message, 502);
   }
 

@@ -11,6 +11,7 @@
 
 import type {
   IeiPhotoAiImageMode,
+  IeiPhotoBackgroundType,
   IeiPhotoClothingStyle,
   IeiPhotoPose,
 } from "./types";
@@ -90,6 +91,7 @@ export async function requestAiImage(
   mode: IeiPhotoAiImageMode,
   clothingStyle: IeiPhotoClothingStyle,
   pose: IeiPhotoPose,
+  backgroundType: IeiPhotoBackgroundType,
   extraPrompt?: string,
 ): Promise<Blob> {
   const imageBlob = await downscaleCanvasForAi(baseCanvas);
@@ -99,6 +101,7 @@ export async function requestAiImage(
   form.append("mode", mode);
   form.append("clothingStyle", clothingStyle);
   form.append("pose", pose);
+  form.append("backgroundType", backgroundType);
   if (extraPrompt && extraPrompt.trim()) {
     form.append("prompt", extraPrompt.trim());
   }

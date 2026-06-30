@@ -39,7 +39,6 @@ import {
   getAiGenerationProvider,
   IEI_PHOTO_MODE_TO_ROLE,
 } from "@/lib/iei-photo/ai-generation-provider";
-import { requestBackgroundRemoval } from "@/lib/iei-photo/background-client";
 import { requestAiImage } from "@/lib/iei-photo/ai-image-client";
 import {
   applyDeAiEffectToImage,
@@ -48,7 +47,6 @@ import {
 import {
   IEI_PHOTO_BACKGROUND_OPTIONS,
   IEI_PHOTO_DEFAULT_BACKGROUND,
-  IEI_PHOTO_GENDER_OPTIONS,
 } from "@/lib/iei-photo/backgrounds";
 import {
   IEI_PHOTO_CLOTHING_LABELS,
@@ -85,7 +83,6 @@ import type {
   IeiPhotoDeAiStrength,
   IeiPhotoExportKind,
   IeiPhotoExports,
-  IeiPhotoGender,
   IeiPhotoJobStatus,
   IeiPhotoMode,
   IeiPhotoPose,
@@ -163,8 +160,8 @@ const READY_QUALITY_CHECKS: IeiPhotoQualityCheckItem[] = [
     key: "backgroundNaturalness",
     label: "背景自然さチェック",
     status: "pending",
-    description: "背景処理APIが未接続のため、背景自然さの自動判定は行っていません。",
-    note: "未実装 / 背景処理API未接続",
+    description: "AI生成背景が自然に見えるかを確認します。",
+    note: "AI生成背景は目視確認",
   },
 ];
 
@@ -193,10 +190,6 @@ export default function IeiPhotoPage() {
   const [background, setBackground] = useState<IeiPhotoBackgroundSettings>(
     IEI_PHOTO_DEFAULT_BACKGROUND,
   );
-  // 背景切り抜き（透過PNG）の状態
-  const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
-  const [hasCutout, setHasCutout] = useState<boolean>(false);
-  const [removingBg, setRemovingBg] = useState<boolean>(false);
   const [statusState, setStatusState] = useState<StatusState>(IDLE_STATUS);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -233,23 +226,20 @@ export default function IeiPhotoPage() {
   const [eyeBrightness, setEyeBrightness] = useState<number>(40);
   const [teethAdjust, setTeethAdjust] = useState<boolean>(false);
 
-  // 元画像 File / 読み込み済み元画像 / 切り抜き済み画像 / 基準写真（親データ）
-  const fileRef = useRef<File | null>(null);
+  // 読み込み済み元画像 / 基準写真（親データ）
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const cutoutImgRef = useRef<HTMLImageElement | null>(null);
-  // AI結果画像 / 脱AI処理後画像（親データの優先: deAi → ai → cutout → 元画像）
+  // AI結果画像 / 脱AI処理後画像（親データの優先: deAi → ai → 元画像）
   const aiEnhancedImgRef = useRef<HTMLImageElement | null>(null);
   const deAiImgRef = useRef<HTMLImageElement | null>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 「手動で微調整する」でスクロール移動する先
   const adjustmentRef = useRef<HTMLDivElement | null>(null);
-  // 切り抜き・生成の完了時にプレビュー（元画像＋切り抜き画像）へ移動する先
+  // 生成の完了時にプレビューへ移動する先
   const previewRef = useRef<HTMLDivElement | null>(null);
 
   // ObjectURL の最新値を保持し、アンマウント時に解放するための ref
   const previewUrlRef = useRef<string | null>(null);
   const outputUrlRef = useRef<string | null>(null);
-  const cutoutUrlRef = useRef<string | null>(null);
   const aiEnhancedUrlRef = useRef<string | null>(null);
   const deAiUrlRef = useRef<string | null>(null);
   useEffect(() => {
@@ -258,9 +248,6 @@ export default function IeiPhotoPage() {
   useEffect(() => {
     outputUrlRef.current = outputUrl;
   }, [outputUrl]);
-  useEffect(() => {
-    cutoutUrlRef.current = cutoutUrl;
-  }, [cutoutUrl]);
   useEffect(() => {
     aiEnhancedUrlRef.current = aiEnhancedUrl;
   }, [aiEnhancedUrl]);
@@ -284,9 +271,6 @@ export default function IeiPhotoPage() {
       }
       if (outputUrlRef.current) {
         URL.revokeObjectURL(outputUrlRef.current);
-      }
-      if (cutoutUrlRef.current) {
-        URL.revokeObjectURL(cutoutUrlRef.current);
       }
       if (aiEnhancedUrlRef.current) {
         URL.revokeObjectURL(aiEnhancedUrlRef.current);
@@ -320,18 +304,14 @@ export default function IeiPhotoPage() {
       // 親データの優先順位:
       //   1. 脱AI処理後画像
       //   2. AI結果画像（高度AI補正 / AI肖像生成 / AIお任せ）
-      //   3. 背景切り抜き済み透過PNG（選択背景と合成）
-      //   4. 元画像
+      //   3. 元画像
       const source =
-        deAiImgRef.current ??
-        aiEnhancedImgRef.current ??
-        cutoutImgRef.current ??
-        imgRef.current;
+        deAiImgRef.current ?? aiEnhancedImgRef.current ?? imgRef.current;
       if (!source) {
         return;
       }
       try {
-        // 写真背景（縦: 手札/四切）を基準写真に焼き込む。写真系以外は null。
+        // 現行仕様では別背景画像を読み込まない。bgImage は旧互換の fallback。
         const bgImage = await resolveBackgroundImage(bg, "vertical");
         const canvas = renderBasePhotoCanvas(source, adj, bg, bgImage);
         baseCanvasRef.current = canvas;
@@ -349,15 +329,6 @@ export default function IeiPhotoPage() {
     },
     [replaceOutputUrl],
   );
-
-  const replaceCutoutUrl = useCallback((next: string | null) => {
-    setCutoutUrl((prev) => {
-      if (prev && prev !== next) {
-        URL.revokeObjectURL(prev);
-      }
-      return next;
-    });
-  }, []);
 
   const replaceAiEnhancedUrl = useCallback((next: string | null) => {
     setAiEnhancedUrl((prev) => {
@@ -382,10 +353,7 @@ export default function IeiPhotoPage() {
     setError(null);
     setInfo(null);
     setHasBase(false);
-    setHasCutout(false);
-    setRemovingBg(false);
     baseCanvasRef.current = null;
-    cutoutImgRef.current = null;
     // AI結果・脱AI結果も解除する（新しい写真・クリア時）。
     aiEnhancedImgRef.current = null;
     deAiImgRef.current = null;
@@ -396,12 +364,10 @@ export default function IeiPhotoPage() {
     setAllowPortrait(false);
     setAllowAuto(false);
     replaceOutputUrl(null);
-    replaceCutoutUrl(null);
     replaceAiEnhancedUrl(null);
     replaceDeAiUrl(null);
   }, [
     replaceOutputUrl,
-    replaceCutoutUrl,
     replaceAiEnhancedUrl,
     replaceDeAiUrl,
   ]);
@@ -414,7 +380,6 @@ export default function IeiPhotoPage() {
       setAutoCorrect(false);
       setImgLoaded(false);
       imgRef.current = null;
-      fileRef.current = file;
 
       const url = URL.createObjectURL(file);
       setPreviewUrl((prev) => {
@@ -449,7 +414,6 @@ export default function IeiPhotoPage() {
     setFileName(null);
     setImgLoaded(false);
     imgRef.current = null;
-    fileRef.current = null;
     setPreviewUrl((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -510,7 +474,7 @@ export default function IeiPhotoPage() {
     computeEffective,
   ]);
 
-  // 生成が完了したら、結果（元画像＋切り抜き画像）へ自動スクロールする
+  // 生成が完了したら、結果プレビューへ自動スクロールする
   // （操作ボタンと結果プレビューが離れていても、見るための手動スクロールを不要にする）。
   useEffect(() => {
     if (isCompleted && hasBase) {
@@ -564,7 +528,13 @@ export default function IeiPhotoPage() {
 
       let pendingUrl: string | null = null;
       try {
-        const blob = await requestAiImage(base, aiMode, clothingStyle, pose);
+        const blob = await requestAiImage(
+          base,
+          aiMode,
+          clothingStyle,
+          pose,
+          background.type,
+        );
         const url = URL.createObjectURL(blob);
         pendingUrl = url;
         const img = await loadImageElement(url);
@@ -826,70 +796,15 @@ export default function IeiPhotoPage() {
     void runAiImage("advanced");
   }, [runAiImage]);
 
-  const handleBackgroundType = useCallback((type: IeiPhotoBackgroundType) => {
-    // 性別（写真背景の選択）は保持したままタイプだけ切り替える。
-    setBackground((prev) => ({ ...prev, type }));
-  }, []);
-
-  // 性別トグル: 写真背景（男性=ブルー / 女性=ピンク）を自動選択する。
-  const handleBackgroundGender = useCallback((gender: IeiPhotoGender) => {
-    setBackground({ type: "photo", gender });
-  }, []);
-
-  /**
-   * 背景切り抜き（自前 rembg ワーカー経由）。
-   * 元File を /api/iei-photo/remove-background へ送り、透過PNGを取得。
-   * 以後の基準写真生成は切り抜き画像を優先し、選択背景と Canvas 合成する。
-   */
-  const handleRemoveBackground = useCallback(async () => {
-    const file = fileRef.current;
-    if (!file) {
-      setError("先に写真をアップロードしてください。");
-      return;
-    }
-    setRemovingBg(true);
-    setError(null);
-    setInfo("背景を切り抜き中…");
-
-    let pendingUrl: string | null = null;
-    try {
-      const blob = await requestBackgroundRemoval(file);
-      const url = URL.createObjectURL(blob);
-      pendingUrl = url;
-      const img = await loadImageElement(url);
-      cutoutImgRef.current = img;
-      replaceCutoutUrl(url);
-      pendingUrl = null;
-      setHasCutout(true);
-      setInfo("背景切り抜き済み。選択した背景と合成して出力します。");
-      void generatePreview(computeEffective(adjustments), previewKind, background);
-      // 切り抜き直後、結果（元画像＋切り抜き画像）を見るための手動スクロールを不要にする。
-      requestAnimationFrame(() => {
-        previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    } catch (e) {
-      // 失敗時は古い切り抜き画像を残さない。
-      if (pendingUrl) {
-        URL.revokeObjectURL(pendingUrl);
+  const handleBackgroundType = useCallback(
+    (type: IeiPhotoBackgroundType) => {
+      setBackground({ type });
+      if (aiEnhancedImgRef.current || deAiImgRef.current) {
+        setInfo("背景を変更しました。AI生成を再実行すると反映されます。");
       }
-      cutoutImgRef.current = null;
-      replaceCutoutUrl(null);
-      setHasCutout(false);
-      setInfo(null);
-      setError(e instanceof Error ? e.message : "背景切り抜きに失敗しました。");
-      // 元画像でのプレビューに戻す。
-      void generatePreview(computeEffective(adjustments), previewKind, background);
-    } finally {
-      setRemovingBg(false);
-    }
-  }, [
-    adjustments,
-    previewKind,
-    background,
-    generatePreview,
-    replaceCutoutUrl,
-    computeEffective,
-  ]);
+    },
+    [],
+  );
 
   const canExport = hasBase && !exporting;
   const controlsDisabled = !imgLoaded;
@@ -937,7 +852,7 @@ export default function IeiPhotoPage() {
     setDeAiStrength(value < 40 ? "light" : value < 75 ? "standard" : "strong");
   }, []);
 
-  // 背景スウォッチ。既存の Canvas 合成で使える背景タイプのみを表示する。
+  // 背景スウォッチ。選択値は AI 生成プロンプトへ渡す。
   const bgSwatchOptions: {
     value: IeiPhotoBackgroundType;
     label: string;
@@ -1002,30 +917,12 @@ export default function IeiPhotoPage() {
         adjustments.offsetX === 0 &&
         adjustments.offsetY === 0,
     },
-    {
-      id: "bg-photo",
-      label: "写真背景",
+    ...IEI_PHOTO_BACKGROUND_OPTIONS.map((option) => ({
+      id: `bg-${option.type}`,
+      label: `背景：${compactBackgroundLabel(option.type)}`,
       thumbUrl: outputUrl,
-      active: Boolean(outputUrl) && background.type === "photo",
-    },
-    {
-      id: "bg-white",
-      label: "背景：白",
-      thumbUrl: outputUrl,
-      active: Boolean(outputUrl) && background.type === "white",
-    },
-    {
-      id: "bg-gray",
-      label: "背景：グレー",
-      thumbUrl: outputUrl,
-      active: Boolean(outputUrl) && background.type === "light_gray",
-    },
-    {
-      id: "bg-gradient",
-      label: "背景：グラデ",
-      thumbUrl: outputUrl,
-      active: Boolean(outputUrl) && background.type === "gradient",
-    },
+      active: Boolean(outputUrl) && background.type === option.type,
+    })),
   ];
 
   const handleToggleCandidate = useCallback(
@@ -1043,27 +940,20 @@ export default function IeiPhotoPage() {
         case "center-face":
           handleToggleFaceCenter(true);
           break;
-        case "bg-photo":
-          handleBackgroundType(background.type === "photo" ? "white" : "photo");
-          break;
-        case "bg-white":
-          handleBackgroundType(background.type === "white" ? "photo" : "white");
-          break;
-        case "bg-gray":
-          handleBackgroundType(
-            background.type === "light_gray" ? "photo" : "light_gray",
-          );
-          break;
-        case "bg-gradient":
-          handleBackgroundType(
-            background.type === "gradient" ? "photo" : "gradient",
-          );
-          break;
         default:
+          if (id.startsWith("bg-")) {
+            const type = id.slice(3) as IeiPhotoBackgroundType;
+            const exists = IEI_PHOTO_BACKGROUND_OPTIONS.some(
+              (option) => option.type === type,
+            );
+            if (exists) {
+              handleBackgroundType(type);
+            }
+          }
           break;
       }
     },
-    [background.type, handleBackgroundType, handleToggleFaceCenter],
+    [handleBackgroundType, handleToggleFaceCenter],
   );
 
   return (
@@ -1300,27 +1190,8 @@ export default function IeiPhotoPage() {
             >
               <StudioSectionHeading
                 icon={<IconImage className="h-4 w-4" />}
-                title="背景"
+                title="AI背景"
               />
-              <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {IEI_PHOTO_GENDER_OPTIONS.map((option) => {
-                  const active =
-                    background.type === "photo" &&
-                    (background.gender ?? "male") === option.gender;
-                  return (
-                    <button
-                      key={option.gender}
-                      type="button"
-                      aria-pressed={active}
-                      disabled={controlsDisabled}
-                      onClick={() => handleBackgroundGender(option.gender)}
-                      className={cnStudio(active)}
-                    >
-                      {option.gender === "male" ? "男性" : "女性"}
-                    </button>
-                  );
-                })}
-              </div>
               <StudioSwatchGroup
                 options={bgSwatchOptions}
                 value={background.type}
@@ -1329,21 +1200,12 @@ export default function IeiPhotoPage() {
               />
               <button
                 type="button"
-                onClick={handleRemoveBackground}
-                disabled={controlsDisabled || removingBg}
-                className="mt-3 w-full rounded-md border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
+                onClick={handleAdvancedAi}
+                disabled={controlsDisabled || aiProcessing || !hasBase}
+                className="mt-3 w-full rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-900 disabled:opacity-50"
               >
-                {removingBg
-                  ? "人物を切り抜き中…"
-                  : hasCutout
-                    ? "人物を切り抜き直す"
-                    : "人物を切り抜く"}
+                {aiProcessing ? "AI生成中…" : "背景込みでAI生成"}
               </button>
-              {hasCutout && (
-                <p className="mt-2 rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
-                  切り抜き済み
-                </p>
-              )}
             </section>
 
             {/* AI仕上げ */}
@@ -1439,7 +1301,7 @@ export default function IeiPhotoPage() {
                       disabled={controlsDisabled || aiProcessing || !hasBase}
                       className="rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-900 disabled:opacity-50"
                     >
-                      {aiProcessing ? "AI補正中…" : "高度AI補正"}
+                      {aiProcessing ? "AI生成中…" : "背景込みAI補正"}
                     </button>
                     <button
                       type="button"
@@ -1449,7 +1311,7 @@ export default function IeiPhotoPage() {
                       }
                       className="rounded-md border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
                     >
-                      AIにお任せ
+                      背景もお任せ
                     </button>
                   </div>
 
@@ -1605,28 +1467,22 @@ export default function IeiPhotoPage() {
   );
 }
 
-/** 背景切り抜きの性別ボタン用クラス。 */
-function cnStudio(active: boolean): string {
-  return [
-    "flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition",
-    active
-      ? "bg-slate-800 text-white"
-      : "bg-white text-slate-600 border border-stone-300 hover:bg-stone-100",
-  ].join(" ");
-}
-
 function compactBackgroundLabel(type: IeiPhotoBackgroundType): string {
   switch (type) {
     case "sky":
       return "空";
-    case "white":
-      return "白";
     case "light_gray":
       return "グレー";
     case "warm_beige":
       return "ベージュ";
     case "pale_blue":
       return "ブルー";
+    case "pale_pink":
+      return "ピンク";
+    case "auto":
+      return "お任せ";
+    case "white":
+      return "白";
     case "gradient":
       return "グラデ";
     case "photo":
