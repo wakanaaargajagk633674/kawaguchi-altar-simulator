@@ -14,6 +14,7 @@ import type {
   IeiPhotoAiImageMode,
   IeiPhotoBackgroundType,
   IeiPhotoClothingStyle,
+  IeiPhotoExpressionSettings,
   IeiPhotoPose,
 } from "./types";
 
@@ -111,6 +112,46 @@ export const IEI_PHOTO_POSE_ORDER: IeiPhotoPose[] = [
   "upright",
 ];
 
+function buildExpressionPrompt(
+  expression?: IeiPhotoExpressionSettings,
+): string {
+  if (!expression) {
+    return "";
+  }
+
+  const parts: string[] = [
+    "表情の調整は控えめに行い、本人らしさ、顔の輪郭、目や口の形、年齢感を変えないでください。",
+  ];
+
+  if (expression.smile >= 65) {
+    parts.push(
+      "口元をわずかにやわらげ、遺影写真として自然で品のある微笑みにしてください。大きな笑顔や別人のような口元にはしないでください。",
+    );
+  } else if (expression.smile <= 35) {
+    parts.push(
+      "笑顔を強めず、口元は落ち着いた穏やかな表情にしてください。不機嫌、無表情すぎる印象にはしないでください。",
+    );
+  }
+
+  if (expression.eyeBrightness >= 55) {
+    parts.push(
+      "目元を少し明るく見せ、自然なハイライトと清潔感を加えてください。目の形、大きさ、視線は変えないでください。",
+    );
+  } else if (expression.eyeBrightness <= 25) {
+    parts.push(
+      "目元の明るさは控えめにし、落ち着いた印象を保ってください。暗く沈んだ目元にはしないでください。",
+    );
+  }
+
+  if (expression.teethAdjust) {
+    parts.push(
+      "歯が元写真に見えている場合のみ自然に整えてください。元写真で歯が見えていない場合は歯を描き足さないでください。",
+    );
+  }
+
+  return parts.join(" ");
+}
+
 /**
  * 最終プロンプトを組み立てる。
  * 統合順: 本人らしさ・顔特徴・背景明るさ（基本）→ 服装 → 体勢・向き → 追加指示。
@@ -121,6 +162,7 @@ export function buildAiPrompt(
   pose: IeiPhotoPose,
   backgroundType: IeiPhotoBackgroundType = "auto",
   backgroundGradient = false,
+  expression?: IeiPhotoExpressionSettings,
   extraPrompt?: string,
 ): string {
   const parts: string[] = [IEI_PHOTO_AI_BASE_PROMPTS[mode]];
@@ -137,6 +179,10 @@ export function buildAiPrompt(
   const poseText = IEI_PHOTO_POSE_PROMPTS[pose];
   if (poseText) {
     parts.push(poseText);
+  }
+  const expressionText = buildExpressionPrompt(expression);
+  if (expressionText) {
+    parts.push(expressionText);
   }
   const extra = extraPrompt?.trim();
   if (extra) {

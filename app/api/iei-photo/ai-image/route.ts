@@ -10,6 +10,9 @@
  *  - clothingStyle: none | mourning_japanese | mourning_western | suit | casual
  *  - backgroundType: sky | light_gray | warm_beige | pale_blue | pale_pink | auto
  *  - backgroundGradient: true | false
+ *  - smile:        0-100（既定 50）
+ *  - eyeBrightness: 0-100（既定 40）
+ *  - teethAdjust:  true | false
  *  - prompt:       任意の追加指示
  *
  * 成功: image/png（生成画像バイナリ）
@@ -26,6 +29,7 @@ import type {
   IeiPhotoAiImageMode,
   IeiPhotoBackgroundType,
   IeiPhotoClothingStyle,
+  IeiPhotoExpressionSettings,
   IeiPhotoPose,
 } from "@/lib/iei-photo/types";
 
@@ -69,6 +73,19 @@ const VALID_POSE: IeiPhotoPose[] = [
 
 function jsonError(message: string, status: number): Response {
   return Response.json({ ok: false, message }, { status });
+}
+
+function readRangeNumber(
+  form: FormData,
+  fieldName: string,
+  defaultValue: number,
+): number {
+  const raw = form.get(fieldName);
+  const value = typeof raw === "string" ? Number(raw) : NaN;
+  if (!Number.isFinite(value)) {
+    return defaultValue;
+  }
+  return Math.min(100, Math.max(0, Math.round(value)));
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -122,6 +139,11 @@ export async function POST(request: Request): Promise<Response> {
   const backgroundGradient =
     String(form.get("backgroundGradient") ?? "false") === "true" &&
     GRADIENT_BACKGROUND_TYPES.includes(backgroundType);
+  const expression: IeiPhotoExpressionSettings = {
+    smile: readRangeNumber(form, "smile", 50),
+    eyeBrightness: readRangeNumber(form, "eyeBrightness", 40),
+    teethAdjust: String(form.get("teethAdjust") ?? "false") === "true",
+  };
 
   const extraPromptRaw = form.get("prompt");
   const extraPrompt =
@@ -133,6 +155,7 @@ export async function POST(request: Request): Promise<Response> {
     pose,
     backgroundType,
     backgroundGradient,
+    expression,
     extraPrompt,
   );
 

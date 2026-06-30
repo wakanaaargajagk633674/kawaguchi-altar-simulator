@@ -139,6 +139,16 @@ export type IeiPhotoAiResultMode = IeiPhotoAiImageMode | null;
 export type IeiPhotoDeAiStrength = "light" | "standard" | "strong";
 
 /**
+ * AI生成時に使う表情の微調整値。
+ * 50/40付近は元写真の印象を優先し、極端な顔の作り替えは避ける。
+ */
+export type IeiPhotoExpressionSettings = {
+  smile: number;
+  eyeBrightness: number;
+  teethAdjust: boolean;
+};
+
+/**
  * AI生成後チェック項目（目視確認用）。
  * 現状は自動判定せず「要確認」を表示するだけ。将来、自動判定で status を更新できる設計。
  */

@@ -222,7 +222,7 @@ export default function IeiPhotoPage() {
   const [showAiDetails, setShowAiDetails] = useState<boolean>(false);
   // 顔を中心に配置（ON時は横位置・縦位置を中央へ戻す表示トグル）
   const [faceCenter, setFaceCenter] = useState<boolean>(true);
-  // 表情の調整（現状は表示のみのスタブ。AI仕上げ接続は今後）
+  // 表情の調整（AI生成時のプロンプトへ反映）
   const [smile, setSmile] = useState<number>(50);
   const [eyeBrightness, setEyeBrightness] = useState<number>(40);
   const [teethAdjust, setTeethAdjust] = useState<boolean>(false);
@@ -537,6 +537,7 @@ export default function IeiPhotoPage() {
           background.type,
           supportsBackgroundGradient(background.type) &&
             Boolean(background.gradient),
+          { smile, eyeBrightness, teethAdjust },
         );
         const url = URL.createObjectURL(blob);
         pendingUrl = url;
@@ -588,6 +589,9 @@ export default function IeiPhotoPage() {
       allowAuto,
       clothingStyle,
       pose,
+      smile,
+      eyeBrightness,
+      teethAdjust,
       generatePreview,
       computeEffective,
       adjustments,
@@ -1390,10 +1394,10 @@ export default function IeiPhotoPage() {
                     </>
                   )}
 
-                  <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-3 opacity-75">
+                  <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-3">
                     <StudioSectionHeading
                       icon={<IconSmile className="h-4 w-4" />}
-                      title="表情の調整（準備中）"
+                      title="表情の調整"
                     />
                     <StudioSlider
                       label="自然な微笑み"
@@ -1401,7 +1405,7 @@ export default function IeiPhotoPage() {
                       min={0}
                       max={100}
                       valueLabel={`${smile}`}
-                      disabled
+                      disabled={controlsDisabled || isProcessing || aiProcessing}
                       onChange={setSmile}
                     />
                     <StudioSlider
@@ -1410,13 +1414,13 @@ export default function IeiPhotoPage() {
                       min={0}
                       max={100}
                       valueLabel={`${eyeBrightness}`}
-                      disabled
+                      disabled={controlsDisabled || isProcessing || aiProcessing}
                       onChange={setEyeBrightness}
                     />
                     <StudioToggle
                       label="歯の見え方を調整"
                       checked={teethAdjust}
-                      disabled
+                      disabled={controlsDisabled || isProcessing || aiProcessing}
                       onChange={setTeethAdjust}
                     />
                   </div>
