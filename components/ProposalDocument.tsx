@@ -181,9 +181,7 @@ function DetailTotalSummary({ estimate }: { estimate: EstimateSummary }) {
         <p className="text-sm" style={{ color: pdfColors.muted }}>
           実費項目
         </p>
-        <p className="mt-1 text-lg font-semibold">
-          {formatYen(estimate.actualCostAmount)}
-        </p>
+        <p className="mt-1 text-lg font-semibold">円</p>
         <p className="mt-2 text-xs leading-5" style={{ color: pdfColors.muted }}>
           こちらは概算です。正式なお見積もりは内容確認後に作成します。
         </p>
