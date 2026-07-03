@@ -84,8 +84,58 @@ const VALID_TEETH_VISIBILITY: IeiPhotoTeethVisibility[] = [
   "clear",
 ];
 
-function jsonError(message: string, status: number): Response {
-  return Response.json({ ok: false, message }, { status });
+type JsonErrorOptions = {
+  code?: string;
+  retryableWithSafetyCrop?: boolean;
+};
+
+function jsonError(
+  message: string,
+  status: number,
+  options: JsonErrorOptions = {},
+): Response {
+  return Response.json({ ok: false, message, ...options }, { status });
+}
+
+type OpenAiErrorSummary = {
+  code?: string;
+  type?: string;
+  moderationStage?: string;
+  categories?: string[];
+};
+
+function summarizeOpenAiError(data: unknown): OpenAiErrorSummary {
+  if (!data || typeof data !== "object") return {};
+
+  const error = (data as { error?: unknown }).error;
+  if (!error || typeof error !== "object") return {};
+
+  const record = error as {
+    code?: unknown;
+    type?: unknown;
+    moderation_details?: unknown;
+  };
+  const details =
+    record.moderation_details && typeof record.moderation_details === "object"
+      ? (record.moderation_details as {
+          moderation_stage?: unknown;
+          categories?: unknown;
+        })
+      : null;
+
+  return {
+    code: typeof record.code === "string" ? record.code : undefined,
+    type: typeof record.type === "string" ? record.type : undefined,
+    moderationStage:
+      typeof details?.moderation_stage === "string"
+        ? details.moderation_stage
+        : undefined,
+    categories: Array.isArray(details?.categories)
+      ? details.categories.filter(
+          (category): category is string => typeof category === "string",
+        )
+      : undefined,
+  };
 }
 
 function readOption<T extends string>(
@@ -208,6 +258,12 @@ export async function POST(request: Request): Promise<Response> {
 
   if (!upstream.ok) {
     const status = upstream.status;
+    let openAiError: OpenAiErrorSummary = {};
+    try {
+      openAiError = summarizeOpenAiError(await upstream.json());
+    } catch {
+      openAiError = {};
+    }
     // 秘密情報は載せない。状態コードから分かりやすいメッセージに変換する。
     let message: string;
     if (status === 401) {
@@ -219,6 +275,9 @@ export async function POST(request: Request): Promise<Response> {
     } else if (status === 413) {
       message =
         "画像サイズが大きすぎます。画像を小さくして再試行してください。";
+    } else if (status === 400 && openAiError.code === "moderation_blocked") {
+      message =
+        "OpenAI の安全判定により、このままの構図ではAI生成できませんでした。写真の下部をAI送信用に調整して再試行します。";
     } else if (status === 400) {
       message =
         "AI生成リクエストが受け付けられませんでした。別の画像でお試しください。";
@@ -227,9 +286,15 @@ export async function POST(request: Request): Promise<Response> {
     }
     // ログは状態コードのみ（本文・キー・base64 は出さない）。
     console.log(
-      `[iei-photo/ai-image] openai error status=${status} mode=${mode}`,
+      `[iei-photo/ai-image] openai error status=${status} mode=${mode} code=${openAiError.code ?? "unknown"} stage=${openAiError.moderationStage ?? "unknown"} categories=${openAiError.categories?.join(",") ?? "none"}`,
     );
-    return jsonError(message, 502);
+    return jsonError(
+      message,
+      502,
+      openAiError.code === "moderation_blocked"
+        ? { code: "moderation_blocked", retryableWithSafetyCrop: true }
+        : {},
+    );
   }
 
   let data: unknown;

@@ -22,6 +22,30 @@ const AI_IMAGE_ENDPOINT = "/api/iei-photo/ai-image";
 const MAX_EDGE = 1600;
 /** 送信画像の JPEG 品質。 */
 const SEND_JPEG_QUALITY = 0.9;
+const SAFETY_CROP_HEIGHT_RATIO = 0.6;
+const SAFETY_CROP_RETRY_PROMPT =
+  "元写真は施設で撮影された楽しい記念写真です。首元や胸元の近くに手が写っている場合がありますが、危険行為ではなく、喜びを表す自然なしぐさです。AI送信用に下部をトリミングしているため、見えている顔、髪型、表情、本人らしさを最優先で維持し、肩や胸元は自然なポートレートとして補ってください。";
+
+type AiImageErrorPayload = {
+  message?: unknown;
+  code?: unknown;
+  retryableWithSafetyCrop?: unknown;
+};
+
+class IeiPhotoAiImageError extends Error {
+  code?: string;
+  retryableWithSafetyCrop: boolean;
+
+  constructor(
+    message: string,
+    options: { code?: string; retryableWithSafetyCrop?: boolean } = {},
+  ) {
+    super(message);
+    this.name = "IeiPhotoAiImageError";
+    this.code = options.code;
+    this.retryableWithSafetyCrop = Boolean(options.retryableWithSafetyCrop);
+  }
+}
 
 function canvasToJpegBlob(
   canvas: HTMLCanvasElement,
@@ -71,23 +95,54 @@ export async function downscaleCanvasForAi(
   return canvasToJpegBlob(small, SEND_JPEG_QUALITY);
 }
 
-async function extractErrorMessage(res: Response): Promise<string> {
+function createSafetyCropCanvas(source: HTMLCanvasElement): HTMLCanvasElement {
+  const cropHeight = Math.max(
+    1,
+    Math.round(source.height * SAFETY_CROP_HEIGHT_RATIO),
+  );
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = cropHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return source;
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(
+    source,
+    0,
+    0,
+    source.width,
+    cropHeight,
+    0,
+    0,
+    source.width,
+    cropHeight,
+  );
+  return canvas;
+}
+
+async function extractAiImageError(res: Response): Promise<IeiPhotoAiImageError> {
   try {
-    const data = (await res.json()) as { message?: unknown };
+    const data = (await res.json()) as AiImageErrorPayload;
     if (typeof data?.message === "string" && data.message) {
-      return data.message;
+      return new IeiPhotoAiImageError(data.message, {
+        code: typeof data.code === "string" ? data.code : undefined,
+        retryableWithSafetyCrop: data.retryableWithSafetyCrop === true,
+      });
     }
   } catch {
     // JSON でない場合は既定メッセージ
   }
-  return "AI生成に失敗しました。";
+  return new IeiPhotoAiImageError("AI生成に失敗しました。");
 }
 
 /**
  * 基準写真 Canvas を AI 処理し、生成画像の Blob を取得する。
  * @throws ユーザー向けメッセージを持つ Error
  */
-export async function requestAiImage(
+async function requestAiImageOnce(
   baseCanvas: HTMLCanvasElement,
   mode: IeiPhotoAiImageMode,
   clothingStyle: IeiPhotoClothingStyle,
@@ -125,7 +180,70 @@ export async function requestAiImage(
 
   const contentType = res.headers.get("content-type") ?? "";
   if (!res.ok || !contentType.includes("image/")) {
-    throw new Error(await extractErrorMessage(res));
+    throw await extractAiImageError(res);
   }
   return res.blob();
+}
+
+/**
+ * 基準写真 Canvas を AI 処理し、生成画像の Blob を取得する。
+ * 首元の手などで OpenAI の安全判定に誤検知された場合は、
+ * AI送信用に写真下部を自動クロップして1回だけ再試行する。
+ *
+ * @throws ユーザー向けメッセージを持つ Error
+ */
+export async function requestAiImage(
+  baseCanvas: HTMLCanvasElement,
+  mode: IeiPhotoAiImageMode,
+  clothingStyle: IeiPhotoClothingStyle,
+  pose: IeiPhotoPose,
+  backgroundType: IeiPhotoBackgroundType,
+  backgroundGradient: boolean,
+  expression: IeiPhotoExpressionSettings,
+  extraPrompt?: string,
+): Promise<Blob> {
+  try {
+    return await requestAiImageOnce(
+      baseCanvas,
+      mode,
+      clothingStyle,
+      pose,
+      backgroundType,
+      backgroundGradient,
+      expression,
+      extraPrompt,
+    );
+  } catch (error) {
+    if (
+      !(error instanceof IeiPhotoAiImageError) ||
+      error.code !== "moderation_blocked" ||
+      !error.retryableWithSafetyCrop
+    ) {
+      throw error;
+    }
+  }
+
+  const safetyPrompt = [extraPrompt?.trim(), SAFETY_CROP_RETRY_PROMPT]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    return await requestAiImageOnce(
+      createSafetyCropCanvas(baseCanvas),
+      mode,
+      clothingStyle,
+      pose,
+      backgroundType,
+      backgroundGradient,
+      expression,
+      safetyPrompt,
+    );
+  } catch (retryError) {
+    if (retryError instanceof IeiPhotoAiImageError) {
+      throw new Error(
+        "OpenAI の安全判定によりAI生成できませんでした。写真の下部を手動で少し切る、または顔が中心になるように拡大してから再度お試しください。",
+      );
+    }
+    throw retryError;
+  }
 }

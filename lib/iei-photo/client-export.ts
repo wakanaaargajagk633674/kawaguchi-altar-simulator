@@ -330,31 +330,11 @@ export async function exportYotsugiriFromBase(
 }
 
 /**
- * 基準写真の指定領域の平均色を rgb() 文字列で返す（1x1 へ縮小して読む）。
- * 16:9 余白の下地（エッジ延長のフェード保険）に使う。
- */
-function averageColorOfRegion(
-  src: HTMLCanvasElement,
-  sx: number,
-  sy: number,
-  sw: number,
-  sh: number,
-): string {
-  const tmp = createCanvas(1, 1);
-  const tctx = get2dContext(tmp);
-  tctx.drawImage(src, sx, sy, sw, sh, 0, 0, 1, 1);
-  const d = tctx.getImageData(0, 0, 1, 1).data;
-  return `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
-}
-
-/**
  * 16:9 モニター用を書き出す。
  * 1920x1080 の横長キャンバスに、基準写真（縦長）を中央へ contain 配置（全体が切れない）。
  *
- * 左右余白は「無地背景」や「切れた人物のボケ」ではなく、基準写真の左右端の背景を
- * 横方向へ引き伸ばして（エッジ延長）埋める。四切も同じ基準写真から切り出すため、
- * 16:9 の余白＝四切の背景の続きになり、両者が自然につながる。
- * AI 生成（背景が淡い無地/グラデ）では特になじみやすい。AI で横長生成はしない。
+ * 左右余白は白背景のまま残さず、AI生成済みの縦写真全体を横長に拡大してぼかした背景で埋める。
+ * 中央の人物は元の縦写真を contain 配置するため、上下左右は切れない。AI で横長の再生成はしない。
  */
 export async function exportMonitor169FromBase(
   base: HTMLCanvasElement,
@@ -372,48 +352,32 @@ export async function exportMonitor169FromBase(
   const px = (width - pw) / 2;
   const py = (height - ph) / 2;
 
-  // 端から取るストリップ幅（基準写真幅の数%）。
-  const stripW = Math.max(2, Math.round(bw * 0.04));
+  ctx.fillStyle = BASE_BG_COLOR;
+  ctx.fillRect(0, 0, width, height);
 
-  // 1) 下地: 左右端の平均色で左右半分を塗る（エッジ延長のぼかしフェード保険）。
-  let leftAvg = BASE_BG_COLOR;
-  let rightAvg = BASE_BG_COLOR;
-  try {
-    leftAvg = averageColorOfRegion(base, 0, 0, stripW, bh);
-    rightAvg = averageColorOfRegion(base, bw - stripW, 0, stripW, bh);
-  } catch {
-    // getImageData が使えない環境では白下地のままにする。
-  }
-  ctx.fillStyle = leftAvg;
-  ctx.fillRect(0, 0, Math.ceil(width / 2), height);
-  ctx.fillStyle = rightAvg;
-  ctx.fillRect(Math.floor(width / 2), 0, Math.ceil(width / 2), height);
-
-  // 2) エッジ延長: 基準写真の左右端ストリップを余白へ横引き伸ばし（軽いぼかしでムラ消し）。
-  const seamOverlap = Math.round(width * 0.02);
+  // 1) AI生成済みの縦写真全体を横長背景として敷く。
+  //    端の白余白ではなく、同じAI生成画像由来の背景で16:9余白を埋める。
+  const bgScale = Math.max(width / bw, height / bh);
+  const bgW = bw * bgScale;
+  const bgH = bh * bgScale;
+  const bgPad = Math.round(width * 0.04);
   ctx.save();
-  ctx.filter = "blur(18px)";
-  // 左余白
-  ctx.drawImage(base, 0, 0, stripW, bh, 0, py, px + seamOverlap, ph);
-  // 右余白
-  const rightStart = px + pw - seamOverlap;
+  ctx.filter = "blur(28px) saturate(110%)";
   ctx.drawImage(
     base,
-    bw - stripW,
-    0,
-    stripW,
-    bh,
-    rightStart,
-    py,
-    width - rightStart,
-    ph,
+    (width - bgW) / 2 - bgPad,
+    (height - bgH) / 2 - bgPad,
+    bgW + bgPad * 2,
+    bgH + bgPad * 2,
   );
   ctx.restore();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+  ctx.fillRect(0, 0, width, height);
 
-  // 3) 中央に人物全体を配置（上下左右が切れない）。
+  // 2) 中央に人物全体を配置（上下左右が切れない）。
   ctx.drawImage(base, px, py, pw, ph);
 
-  // 4) ごく弱いビネット（祭壇モニタとして人物を引き立てる）。
+  // 3) ごく弱いビネット（祭壇モニタとして人物を引き立てる）。
   const vignette = ctx.createRadialGradient(
     width / 2,
     height / 2,

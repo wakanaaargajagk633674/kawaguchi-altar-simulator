@@ -179,6 +179,15 @@ const IDLE_STATUS: StatusState = { status: "idle", progress: 0, label: "" };
 /** プレビュー再生成の debounce（ms） */
 const PREVIEW_DEBOUNCE_MS = 200;
 
+type AiImageRunOptions = {
+  extraPrompt?: string;
+  processingLabel?: string;
+  doneLabel?: string;
+};
+
+const HANDS_DOWN_PROMPT =
+  "顔や胸元の近くに上がっている手や腕がある場合は、顔の向き、体の向き、表情、髪型、本人らしさ、背景は保ったまま、手と腕だけを自然に下ろしてください。肩から下の姿勢は遺影写真として自然な上半身に整え、手は体の横または画面内で目立たない低い位置にしてください。顔のサイズ、位置、視線は変えないでください。";
+
 export default function IeiPhotoPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
@@ -503,7 +512,10 @@ export default function IeiPhotoPage() {
    * 16:9 はここでは横長生成せず、Canvas 側で中央配置する（出力仕様は不変）。
    */
   const runAiImage = useCallback(
-    async (aiMode: IeiPhotoAiImageMode) => {
+    async (
+      aiMode: IeiPhotoAiImageMode,
+      options: AiImageRunOptions = {},
+    ) => {
       const base = baseCanvasRef.current;
       if (!base) {
         setError("先に写真をアップロードして基準写真を作成してください。");
@@ -517,12 +529,13 @@ export default function IeiPhotoPage() {
         setError("AIに全てお任せ生成を許可するにチェックしてください。");
         return;
       }
-      const processingLabel =
+      const defaultProcessingLabel =
         aiMode === "advanced"
           ? "AI高度補正中…"
           : aiMode === "portrait"
             ? "AI肖像生成中…"
             : "AIにお任せ生成中…";
+      const processingLabel = options.processingLabel ?? defaultProcessingLabel;
       setAiProcessing(true);
       setError(null);
       setInfo(processingLabel);
@@ -548,6 +561,7 @@ export default function IeiPhotoPage() {
             eyeBrightness,
             teethVisibility,
           },
+          options.extraPrompt,
         );
         const url = URL.createObjectURL(blob);
         pendingUrl = url;
@@ -560,12 +574,13 @@ export default function IeiPhotoPage() {
         replaceDeAiUrl(null);
         setDeAiResult(null);
         setAiResultMode(aiMode);
-        const doneLabel =
+        const defaultDoneLabel =
           aiMode === "advanced"
             ? "AI高度補正済み。出力に反映します。"
             : aiMode === "portrait"
               ? "AI肖像生成済み。出力に反映します。"
               : "AIお任せ生成済み。出力に反映します。";
+        const doneLabel = options.doneLabel ?? defaultDoneLabel;
         setInfo(doneLabel);
         setStatusState({ status: "completed", progress: 100, label: "完了" });
         await generatePreview(
@@ -812,6 +827,14 @@ export default function IeiPhotoPage() {
 
   const handleAdvancedAi = useCallback(() => {
     void runAiImage("advanced");
+  }, [runAiImage]);
+
+  const handleHandsDownAi = useCallback(() => {
+    void runAiImage("advanced", {
+      extraPrompt: HANDS_DOWN_PROMPT,
+      processingLabel: "手・腕を下ろすAI生成中…",
+      doneLabel: "手・腕を下ろしたAI生成済み。出力に反映します。",
+    });
   }, [runAiImage]);
 
   const handleBackgroundType = useCallback(
@@ -1304,6 +1327,14 @@ export default function IeiPhotoPage() {
               </button>
               <button
                 type="button"
+                onClick={handleHandsDownAi}
+                disabled={controlsDisabled || isProcessing || aiProcessing || !hasBase}
+                className="mt-2 w-full rounded-md border border-sky-400 bg-white px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 disabled:opacity-50"
+              >
+                {aiProcessing ? "AI生成中…" : "手・腕を下ろして生成"}
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowAiDetails((v) => !v)}
                 aria-expanded={showAiDetails}
                 className="mt-2 flex w-full items-center justify-between rounded-md border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-stone-100"
@@ -1361,7 +1392,7 @@ export default function IeiPhotoPage() {
                     AIに全てお任せ生成を許可する
                   </label>
 
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-3">
                     <button
                       type="button"
                       onClick={handleAdvancedAi}
@@ -1369,6 +1400,14 @@ export default function IeiPhotoPage() {
                       className="rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-900 disabled:opacity-50"
                     >
                       {aiProcessing ? "AI生成中…" : "背景込みAI補正"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleHandsDownAi}
+                      disabled={controlsDisabled || isProcessing || aiProcessing || !hasBase}
+                      className="rounded-md border border-sky-400 bg-white px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 disabled:opacity-50"
+                    >
+                      手・腕を下ろす
                     </button>
                     <button
                       type="button"
