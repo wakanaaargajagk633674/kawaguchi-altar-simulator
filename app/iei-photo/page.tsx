@@ -188,6 +188,9 @@ type AiImageRunOptions = {
 const HANDS_DOWN_PROMPT =
   "顔や胸元の近くに上がっている手や腕がある場合は、顔の向き、体の向き、表情、髪型、本人らしさ、背景は保ったまま、手と腕だけを自然に下ろしてください。肩から下の姿勢は遺影写真として自然な上半身に整え、手は体の横または画面内で目立たない低い位置にしてください。顔のサイズ、位置、視線は変えないでください。";
 
+const HANDS_KEEP_PROMPT =
+  "手や腕は元画像の位置、角度、見え方を維持してください。AI補正中に手や腕を下ろしたり、消したり、別の位置へ移動したりしないでください。";
+
 export default function IeiPhotoPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
@@ -212,6 +215,7 @@ export default function IeiPhotoPage() {
   const [clothingStyle, setClothingStyle] =
     useState<IeiPhotoClothingStyle>("none");
   const [pose, setPose] = useState<IeiPhotoPose>("none");
+  const [handsDown, setHandsDown] = useState<boolean>(false);
   const [aiResultMode, setAiResultMode] = useState<IeiPhotoAiResultMode>(null);
   const [allowPortrait, setAllowPortrait] = useState<boolean>(false);
   const [allowAuto, setAllowAuto] = useState<boolean>(false);
@@ -378,6 +382,7 @@ export default function IeiPhotoPage() {
     setDeAiProcessing(false);
     setAllowPortrait(false);
     setAllowAuto(false);
+    setHandsDown(false);
     replaceOutputUrl(null);
     replaceAiEnhancedUrl(null);
     replaceDeAiUrl(null);
@@ -547,6 +552,10 @@ export default function IeiPhotoPage() {
 
       let pendingUrl: string | null = null;
       try {
+        const handsPrompt = handsDown ? HANDS_DOWN_PROMPT : HANDS_KEEP_PROMPT;
+        const aiPrompt = [handsPrompt, options.extraPrompt?.trim()]
+          .filter(Boolean)
+          .join("\n");
         const blob = await requestAiImage(
           base,
           aiMode,
@@ -561,7 +570,7 @@ export default function IeiPhotoPage() {
             eyeBrightness,
             teethVisibility,
           },
-          options.extraPrompt,
+          aiPrompt,
         );
         const url = URL.createObjectURL(blob);
         pendingUrl = url;
@@ -614,6 +623,7 @@ export default function IeiPhotoPage() {
       allowAuto,
       clothingStyle,
       pose,
+      handsDown,
       expressionEnabled,
       smileLevel,
       eyeBrightness,
@@ -827,14 +837,6 @@ export default function IeiPhotoPage() {
 
   const handleAdvancedAi = useCallback(() => {
     void runAiImage("advanced");
-  }, [runAiImage]);
-
-  const handleHandsDownAi = useCallback(() => {
-    void runAiImage("advanced", {
-      extraPrompt: HANDS_DOWN_PROMPT,
-      processingLabel: "手・腕を下ろすAI生成中…",
-      doneLabel: "手・腕を下ろしたAI生成済み。出力に反映します。",
-    });
   }, [runAiImage]);
 
   const handleBackgroundType = useCallback(
@@ -1327,14 +1329,6 @@ export default function IeiPhotoPage() {
               </button>
               <button
                 type="button"
-                onClick={handleHandsDownAi}
-                disabled={controlsDisabled || isProcessing || aiProcessing || !hasBase}
-                className="mt-2 w-full rounded-md border border-sky-400 bg-white px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 disabled:opacity-50"
-              >
-                {aiProcessing ? "AI生成中…" : "手・腕を下ろして生成"}
-              </button>
-              <button
-                type="button"
                 onClick={() => setShowAiDetails((v) => !v)}
                 aria-expanded={showAiDetails}
                 className="mt-2 flex w-full items-center justify-between rounded-md border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-stone-100"
@@ -1368,6 +1362,16 @@ export default function IeiPhotoPage() {
                       disabled={controlsDisabled || isProcessing || aiProcessing}
                       onChange={handleChangePose}
                     />
+                    <label className="mt-2 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs font-semibold text-sky-800">
+                      <input
+                        type="checkbox"
+                        checked={handsDown}
+                        onChange={(e) => setHandsDown(e.target.checked)}
+                        disabled={controlsDisabled || isProcessing || aiProcessing}
+                        className="mt-0.5 h-4 w-4 accent-sky-600"
+                      />
+                      手・腕を下ろす
+                    </label>
                   </div>
 
                   {mode === "AI_PORTRAIT" && (
@@ -1392,7 +1396,7 @@ export default function IeiPhotoPage() {
                     AIに全てお任せ生成を許可する
                   </label>
 
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     <button
                       type="button"
                       onClick={handleAdvancedAi}
@@ -1400,14 +1404,6 @@ export default function IeiPhotoPage() {
                       className="rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-900 disabled:opacity-50"
                     >
                       {aiProcessing ? "AI生成中…" : "背景込みAI補正"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleHandsDownAi}
-                      disabled={controlsDisabled || isProcessing || aiProcessing || !hasBase}
-                      className="rounded-md border border-sky-400 bg-white px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 disabled:opacity-50"
-                    >
-                      手・腕を下ろす
                     </button>
                     <button
                       type="button"
