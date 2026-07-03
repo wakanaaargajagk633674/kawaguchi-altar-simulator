@@ -4,10 +4,10 @@
  * 重要方針:
  * - 人物をAI生成する処理は「高度AI補正 / AI肖像生成 / AIに全てお任せ」の明示操作時のみ。
  * - 本人らしさを最優先し、別人化・過度な若返り・過剰な美肌化・顔の作り替えは避ける。
- * - 服装変更はAI処理時のみ。clothingStyle="none" のときは服装指示を追加しない。
+ * - clothingStyle="none" は「服装はそのまま」として扱い、元画像の服装維持を強く指示する。
  *
  * プロンプト統合順:
- *   1. 本人らしさ維持 → 2. 顔の特徴維持 → 3. 背景テーマ → 4. 服装指定
+ *   1. 本人らしさ維持 → 2. 顔の特徴維持 → 3. 背景テーマ → 4. 服装維持/指定
  */
 
 import type {
@@ -52,10 +52,11 @@ export const IEI_PHOTO_BACKGROUND_PROMPTS: Record<
     "背景は遺影写真として自然で品のある淡い背景にしてください。既存の別背景画像を貼り付けたような不自然な合成は避けてください。",
 };
 
-/** 服装ごとの追加指示（none は追加なし）。 */
+/** 服装ごとの追加指示（none は服装維持）。 */
 export const IEI_PHOTO_CLOTHING_PROMPTS: Record<IeiPhotoClothingStyle, string> =
   {
-    none: "",
+    none:
+      "服装は元画像のまま維持してください。服の色、柄、襟元、肩、袖、素材感、見えている形を変えず、喪服、スーツ、和装、別のフォーマル服などに置き換えないでください。服が一部不足している場合も、見えている服と同じ雰囲気で自然に延長するだけにしてください。",
     mourning_japanese:
       "服装は落ち着いた正式な喪服の和装にしてください。葬儀用として自然で品のある印象にしてください。",
     mourning_western:
@@ -68,7 +69,7 @@ export const IEI_PHOTO_CLOTHING_PROMPTS: Record<IeiPhotoClothingStyle, string> =
 
 /** UI 表示用の服装ラベル。 */
 export const IEI_PHOTO_CLOTHING_LABELS: Record<IeiPhotoClothingStyle, string> = {
-  none: "指定なし",
+  none: "服装はそのまま",
   mourning_japanese: "喪服（和装）",
   mourning_western: "喪服（洋装）",
   suit: "スーツ",
@@ -166,7 +167,7 @@ function buildCompositionPrompt(
     );
   } else {
     parts.push(
-      "服装指定がない場合は、見えている服装を維持し、不足部分は同じ雰囲気で自然に補ってください。服がほとんど見えない場合のみ、遺影写真として落ち着いたフォーマル寄りの服を自然に補ってください。",
+      "服装はそのままの場合、見えている服装を最優先で維持してください。服の色、柄、襟、肩、袖、布の質感、花柄や模様を変更しないでください。不足部分は同じ服が続いているように補うだけにし、別の服・喪服・スーツ・無地の服へ変えないでください。",
     );
   }
 

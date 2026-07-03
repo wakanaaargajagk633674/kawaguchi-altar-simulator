@@ -1447,7 +1447,7 @@ export default function IeiPhotoPage() {
                 <div className="mt-3 space-y-3 border-t border-stone-100 pt-3">
                   <div>
                     <p className="mb-2 text-xs font-semibold text-slate-600">
-                      服装指定
+                      服装
                     </p>
                     <StudioPillGroup
                       options={clothingOptions}

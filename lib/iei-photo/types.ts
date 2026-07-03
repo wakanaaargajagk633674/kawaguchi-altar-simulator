@@ -107,7 +107,7 @@ export type IeiPhotoAdjustments = {
  * 通常生成（AI標準生成 / rembg+Canvas）では服装変更は行わない。
  */
 export type IeiPhotoClothingStyle =
-  | "none" // 指定なし
+  | "none" // 服装はそのまま
   | "mourning_japanese" // 喪服（和装）
   | "mourning_western" // 喪服（洋装）
   | "suit" // スーツ
