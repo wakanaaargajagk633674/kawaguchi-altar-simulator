@@ -14,18 +14,23 @@
  *  - smileLevel:   slight | natural | broad
  *  - eyeBrightness: true | false
  *  - teethVisibility: closed | slight | clear
+ *  - target:       portrait | wide（省略時 portrait）
  *  - prompt:       任意の追加指示
+ *  - mask:         target=wide の場合のみ。透明部分が左右のAI生成対象。
  *
  * 成功: image/png（生成画像バイナリ）
  * 失敗: JSON `{ ok:false, message:"..." }`
  *
  * 方針:
  * - 人物のAI生成は「高度AI補正 / AI肖像生成 / AIに全てお任せ」の明示操作時のみ（mode で判定）。
- * - 16:9 などの最終レイアウトはクライアントの Canvas 側で行う（ここでは横長生成しない）。
+ * - AI生成後の16:9は、マスク付き編集で左右背景もAI生成する。
  * - APIキー・Authorization・画像base64本体は絶対にログへ出さない。
  */
 
-import { buildAiPrompt } from "@/lib/iei-photo/ai-prompts";
+import {
+  buildAiPrompt,
+  buildWideMonitorPrompt,
+} from "@/lib/iei-photo/ai-prompts";
 import type {
   IeiPhotoAiImageMode,
   IeiPhotoBackgroundType,
@@ -83,6 +88,8 @@ const VALID_TEETH_VISIBILITY: IeiPhotoTeethVisibility[] = [
   "slight",
   "clear",
 ];
+const VALID_TARGETS = ["portrait", "wide"] as const;
+type IeiPhotoAiTarget = (typeof VALID_TARGETS)[number];
 
 type JsonErrorOptions = {
   code?: string;
@@ -172,6 +179,15 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError("画像ファイル（image）が見つかりません。", 400);
   }
 
+  const targetRaw = String(form.get("target") ?? "portrait");
+  const target = VALID_TARGETS.includes(targetRaw as IeiPhotoAiTarget)
+    ? (targetRaw as IeiPhotoAiTarget)
+    : "portrait";
+  const mask = form.get("mask");
+  if (target === "wide" && !(mask instanceof File)) {
+    return jsonError("16:9生成用のマスク画像（mask）が見つかりません。", 400);
+  }
+
   const modeRaw = String(form.get("mode") ?? "");
   const mode = VALID_MODES.includes(modeRaw as IeiPhotoAiImageMode)
     ? (modeRaw as IeiPhotoAiImageMode)
@@ -216,24 +232,31 @@ export async function POST(request: Request): Promise<Response> {
   const extraPrompt =
     typeof extraPromptRaw === "string" ? extraPromptRaw : undefined;
 
-  const prompt = buildAiPrompt(
-    mode,
-    clothingStyle,
-    pose,
-    backgroundType,
-    backgroundGradient,
-    expression,
-    extraPrompt,
-  );
+  const prompt =
+    target === "wide"
+      ? buildWideMonitorPrompt(backgroundType, backgroundGradient, extraPrompt)
+      : buildAiPrompt(
+          mode,
+          clothingStyle,
+          pose,
+          backgroundType,
+          backgroundGradient,
+          expression,
+          extraPrompt,
+        );
 
   // OpenAI Images edit へ転送する multipart を組み立てる。
   const upstreamForm = new FormData();
   upstreamForm.append("model", model);
   upstreamForm.append("image", image, image.name || "input.jpg");
+  if (target === "wide" && mask instanceof File) {
+    upstreamForm.append("mask", mask, mask.name || "mask.png");
+  }
   upstreamForm.append("prompt", prompt);
   upstreamForm.append("n", "1");
-  // 遺影は縦長。最終的に Canvas 側で各サイズへ派生するため縦長で生成する。
-  upstreamForm.append("size", "1024x1536");
+  upstreamForm.append("output_format", "png");
+  upstreamForm.append("quality", "high");
+  upstreamForm.append("size", target === "wide" ? "1536x864" : "1024x1536");
 
   let upstream: Response;
   try {
@@ -286,7 +309,7 @@ export async function POST(request: Request): Promise<Response> {
     }
     // ログは状態コードのみ（本文・キー・base64 は出さない）。
     console.log(
-      `[iei-photo/ai-image] openai error status=${status} mode=${mode} code=${openAiError.code ?? "unknown"} stage=${openAiError.moderationStage ?? "unknown"} categories=${openAiError.categories?.join(",") ?? "none"}`,
+      `[iei-photo/ai-image] openai error status=${status} mode=${mode} target=${target} code=${openAiError.code ?? "unknown"} stage=${openAiError.moderationStage ?? "unknown"} categories=${openAiError.categories?.join(",") ?? "none"}`,
     );
     return jsonError(
       message,
@@ -316,7 +339,7 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError("AI生成画像のデコードに失敗しました。", 502);
   }
 
-  console.log(`[iei-photo/ai-image] success mode=${mode}`);
+  console.log(`[iei-photo/ai-image] success mode=${mode} target=${target}`);
   return new Response(new Uint8Array(pngBuffer), {
     status: 200,
     headers: {

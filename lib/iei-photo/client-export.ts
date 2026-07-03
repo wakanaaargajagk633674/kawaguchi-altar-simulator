@@ -199,6 +199,15 @@ function drawAdjustedCover(
   ctx.drawImage(src, dx, dy, drawWidth, drawHeight);
 }
 
+function sourceSize(
+  image: HTMLImageElement | HTMLCanvasElement,
+): { width: number; height: number } {
+  if (image instanceof HTMLImageElement) {
+    return { width: image.naturalWidth, height: image.naturalHeight };
+  }
+  return { width: image.width, height: image.height };
+}
+
 function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     try {
@@ -394,9 +403,54 @@ export async function exportMonitor169FromBase(
   return canvasToJpegBlob(canvas);
 }
 
+export function renderWideMasterCanvas(
+  wideMaster: HTMLImageElement | HTMLCanvasElement,
+  adjustments: Partial<IeiPhotoAdjustments> | undefined,
+  kind: IeiPhotoExportKind,
+): HTMLCanvasElement {
+  const a = clampAdjustments(adjustments);
+  const { width, height } = IEI_PHOTO_EXPORT_SIZES[kind].pixelGuide;
+  const canvas = createCanvas(width, height);
+  const ctx = get2dContext(canvas);
+  const src = sourceSize(wideMaster);
+
+  ctx.fillStyle = BASE_BG_COLOR;
+  ctx.fillRect(0, 0, width, height);
+  ctx.filter = `brightness(${a.brightness}%) contrast(${a.contrast}%) saturate(${a.saturation}%)`;
+
+  if (kind === "monitor169") {
+    drawCover(ctx, wideMaster, src.width, src.height, width, height);
+  } else {
+    drawAdjustedCover(
+      ctx,
+      wideMaster,
+      src.width,
+      src.height,
+      width,
+      height,
+      a.zoom,
+      a.offsetX,
+      a.offsetY,
+    );
+  }
+
+  ctx.filter = "none";
+  return canvas;
+}
+
+export async function exportFromWideMasterByKind(
+  wideMaster: HTMLImageElement | HTMLCanvasElement,
+  adjustments: Partial<IeiPhotoAdjustments> | undefined,
+  kind: IeiPhotoExportKind,
+): Promise<Blob> {
+  return canvasToJpegBlob(renderWideMasterCanvas(wideMaster, adjustments, kind));
+}
+
 /**
  * 種別に応じて基準写真から派生 Blob を生成する。
- * base/手札/四つ切りは基準写真（縦・背景焼き込み済み）から、16:9 は中央配置＋ボケ背景で生成する。
+ * 未AI生成時は基準写真（縦・背景焼き込み済み）から派生する。
+ * AI生成後は renderWideMasterCanvas / exportFromWideMasterByKind を使い、
+ * 16:9親画像から手札・四つ切りも切り出す。
  */
 export async function exportFromBaseByKind(
   base: HTMLCanvasElement,
@@ -435,6 +489,19 @@ export async function exportAllZipFromBase(
   const entries: ZipEntry[] = [];
   for (const kind of IEI_PHOTO_EXPORT_ORDER) {
     const blob = await exportFromBaseByKind(base, kind);
+    const data = new Uint8Array(await blob.arrayBuffer());
+    entries.push({ name: filenameForKind(kind), data });
+  }
+  return createZipBlob(entries);
+}
+
+export async function exportAllZipFromWideMaster(
+  wideMaster: HTMLImageElement | HTMLCanvasElement,
+  adjustments: Partial<IeiPhotoAdjustments> | undefined,
+): Promise<Blob> {
+  const entries: ZipEntry[] = [];
+  for (const kind of IEI_PHOTO_EXPORT_ORDER) {
+    const blob = await exportFromWideMasterByKind(wideMaster, adjustments, kind);
     const data = new Uint8Array(await blob.arrayBuffer());
     entries.push({ name: filenameForKind(kind), data });
   }

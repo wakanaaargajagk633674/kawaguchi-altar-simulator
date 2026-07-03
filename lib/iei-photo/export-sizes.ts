@@ -50,7 +50,7 @@ export const IEI_PHOTO_EXPORT_SIZES: Record<
     kind: "monitor169",
     label: "16:9モニター用",
     description:
-      "16:9 の横長キャンバスに、基準写真を縦長のまま中央へ contain 配置（余白は無地）。",
+      "AI生成後は16:9親画像をそのまま使用。未AI時は基準写真を中央配置して書き出します。",
     aspectRatio: "16:9",
     pixelGuide: { width: 1920, height: 1080 },
   },

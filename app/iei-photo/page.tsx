@@ -39,7 +39,10 @@ import {
   getAiGenerationProvider,
   IEI_PHOTO_MODE_TO_ROLE,
 } from "@/lib/iei-photo/ai-generation-provider";
-import { requestAiImage } from "@/lib/iei-photo/ai-image-client";
+import {
+  requestAiImage,
+  requestAiWideImage,
+} from "@/lib/iei-photo/ai-image-client";
 import {
   applyDeAiEffectToImage,
   deAiCanvasToPngBlob,
@@ -71,6 +74,9 @@ import {
   resolveBackgroundImage,
   exportFromBaseByKind,
   exportAllZipFromBase,
+  exportFromWideMasterByKind,
+  exportAllZipFromWideMaster,
+  renderWideMasterCanvas,
   filenameForKind,
   downloadBlob,
 } from "@/lib/iei-photo/client-export";
@@ -221,6 +227,7 @@ export default function IeiPhotoPage() {
   const [allowAuto, setAllowAuto] = useState<boolean>(false);
   const [aiProcessing, setAiProcessing] = useState<boolean>(false);
   const [aiEnhancedUrl, setAiEnhancedUrl] = useState<string | null>(null);
+  const [wideMasterUrl, setWideMasterUrl] = useState<string | null>(null);
   // 脱AI処理（肌なじませ。AI生成後画像にのみ適用）
   const [deAiStrength, setDeAiStrength] =
     useState<IeiPhotoDeAiStrength>("standard");
@@ -250,6 +257,7 @@ export default function IeiPhotoPage() {
   // AI結果画像 / 脱AI処理後画像（親データの優先: deAi → ai → 元画像）
   const aiEnhancedImgRef = useRef<HTMLImageElement | null>(null);
   const deAiImgRef = useRef<HTMLImageElement | null>(null);
+  const wideMasterImgRef = useRef<HTMLImageElement | null>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 「手動で微調整する」でスクロール移動する先
   const adjustmentRef = useRef<HTMLDivElement | null>(null);
@@ -260,6 +268,7 @@ export default function IeiPhotoPage() {
   const previewUrlRef = useRef<string | null>(null);
   const outputUrlRef = useRef<string | null>(null);
   const aiEnhancedUrlRef = useRef<string | null>(null);
+  const wideMasterUrlRef = useRef<string | null>(null);
   const deAiUrlRef = useRef<string | null>(null);
   useEffect(() => {
     previewUrlRef.current = previewUrl;
@@ -270,6 +279,9 @@ export default function IeiPhotoPage() {
   useEffect(() => {
     aiEnhancedUrlRef.current = aiEnhancedUrl;
   }, [aiEnhancedUrl]);
+  useEffect(() => {
+    wideMasterUrlRef.current = wideMasterUrl;
+  }, [wideMasterUrl]);
   useEffect(() => {
     deAiUrlRef.current = deAiUrl;
   }, [deAiUrl]);
@@ -294,6 +306,9 @@ export default function IeiPhotoPage() {
       if (aiEnhancedUrlRef.current) {
         URL.revokeObjectURL(aiEnhancedUrlRef.current);
       }
+      if (wideMasterUrlRef.current) {
+        URL.revokeObjectURL(wideMasterUrlRef.current);
+      }
       if (deAiUrlRef.current) {
         URL.revokeObjectURL(deAiUrlRef.current);
       }
@@ -307,6 +322,14 @@ export default function IeiPhotoPage() {
       }
       return next;
     });
+  }, []);
+
+  const getWideMasterSource = useCallback((): HTMLImageElement | null => {
+    const deAi = deAiImgRef.current;
+    if (deAi && deAi.naturalWidth > deAi.naturalHeight) {
+      return deAi;
+    }
+    return wideMasterImgRef.current;
   }, []);
 
   /**
@@ -330,6 +353,16 @@ export default function IeiPhotoPage() {
         return;
       }
       try {
+        const wideSource = getWideMasterSource();
+        if (wideSource) {
+          baseCanvasRef.current = renderWideMasterCanvas(wideSource, adj, "base");
+          setHasBase(true);
+          setError(null);
+          const blob = await exportFromWideMasterByKind(wideSource, adj, kind);
+          replaceOutputUrl(URL.createObjectURL(blob));
+          return;
+        }
+
         // 現行仕様では別背景画像を読み込まない。bgImage は旧互換の fallback。
         const bgImage = await resolveBackgroundImage(bg, "vertical");
         const canvas = renderBasePhotoCanvas(source, adj, bg, bgImage);
@@ -346,11 +379,20 @@ export default function IeiPhotoPage() {
         );
       }
     },
-    [replaceOutputUrl],
+    [getWideMasterSource, replaceOutputUrl],
   );
 
   const replaceAiEnhancedUrl = useCallback((next: string | null) => {
     setAiEnhancedUrl((prev) => {
+      if (prev && prev !== next) {
+        URL.revokeObjectURL(prev);
+      }
+      return next;
+    });
+  }, []);
+
+  const replaceWideMasterUrl = useCallback((next: string | null) => {
+    setWideMasterUrl((prev) => {
       if (prev && prev !== next) {
         URL.revokeObjectURL(prev);
       }
@@ -376,6 +418,7 @@ export default function IeiPhotoPage() {
     // AI結果・脱AI結果も解除する（新しい写真・クリア時）。
     aiEnhancedImgRef.current = null;
     deAiImgRef.current = null;
+    wideMasterImgRef.current = null;
     setAiResultMode(null);
     setAiProcessing(false);
     setDeAiResult(null);
@@ -385,10 +428,12 @@ export default function IeiPhotoPage() {
     setHandsDown(false);
     replaceOutputUrl(null);
     replaceAiEnhancedUrl(null);
+    replaceWideMasterUrl(null);
     replaceDeAiUrl(null);
   }, [
     replaceOutputUrl,
     replaceAiEnhancedUrl,
+    replaceWideMasterUrl,
     replaceDeAiUrl,
   ]);
 
@@ -551,6 +596,7 @@ export default function IeiPhotoPage() {
       });
 
       let pendingUrl: string | null = null;
+      let pendingWideUrl: string | null = null;
       try {
         const handsPrompt = handsDown ? HANDS_DOWN_PROMPT : HANDS_KEEP_PROMPT;
         const aiPrompt = [handsPrompt, options.extraPrompt?.trim()]
@@ -578,6 +624,44 @@ export default function IeiPhotoPage() {
         aiEnhancedImgRef.current = img;
         replaceAiEnhancedUrl(url);
         pendingUrl = null;
+
+        setInfo("16:9モニター用の背景をAI生成中…");
+        setStatusState({
+          status: "creating_base",
+          progress: 82,
+          label: "16:9背景生成中…",
+        });
+        const bgImage = await resolveBackgroundImage(background, "vertical");
+        const verticalCanvas = renderBasePhotoCanvas(
+          img,
+          computeEffective(adjustments),
+          background,
+          bgImage,
+        );
+        baseCanvasRef.current = verticalCanvas;
+        const wideBlob = await requestAiWideImage(
+          verticalCanvas,
+          aiMode,
+          clothingStyle,
+          pose,
+          background.type,
+          supportsBackgroundGradient(background.type) &&
+            Boolean(background.gradient),
+          {
+            enabled: expressionEnabled,
+            smile: smileLevel,
+            eyeBrightness,
+            teethVisibility,
+          },
+          aiPrompt,
+        );
+        const wideUrl = URL.createObjectURL(wideBlob);
+        pendingWideUrl = wideUrl;
+        const wideImg = await loadImageElement(wideUrl);
+        wideMasterImgRef.current = wideImg;
+        replaceWideMasterUrl(wideUrl);
+        pendingWideUrl = null;
+
         // 新しいAI結果が出たら、古い脱AI結果は解除する（AI画像から派生し直す）。
         deAiImgRef.current = null;
         replaceDeAiUrl(null);
@@ -607,6 +691,9 @@ export default function IeiPhotoPage() {
         if (pendingUrl) {
           URL.revokeObjectURL(pendingUrl);
         }
+        if (pendingWideUrl) {
+          URL.revokeObjectURL(pendingWideUrl);
+        }
         setInfo(null);
         setStatusState({
           status: "failed",
@@ -634,6 +721,7 @@ export default function IeiPhotoPage() {
       previewKind,
       background,
       replaceAiEnhancedUrl,
+      replaceWideMasterUrl,
       replaceDeAiUrl,
     ],
   );
@@ -646,7 +734,9 @@ export default function IeiPhotoPage() {
   const handleClearAiResult = useCallback(() => {
     aiEnhancedImgRef.current = null;
     deAiImgRef.current = null;
+    wideMasterImgRef.current = null;
     replaceAiEnhancedUrl(null);
+    replaceWideMasterUrl(null);
     replaceDeAiUrl(null);
     setAiResultMode(null);
     setDeAiResult(null);
@@ -658,6 +748,7 @@ export default function IeiPhotoPage() {
     );
   }, [
     replaceAiEnhancedUrl,
+    replaceWideMasterUrl,
     replaceDeAiUrl,
     generatePreview,
     computeEffective,
@@ -668,11 +759,11 @@ export default function IeiPhotoPage() {
 
   /**
    * 脱AI処理（肌なじませ）。AI生成後画像にのみ適用する。
-   * 常に「AI結果画像（aiEnhancedImgRef）」から派生するため、強度変更で再実行しても累積しない。
-   * 結果は deAiImgRef（最優先の親データ）に入り、4種出力もこれから派生する。
+   * wide master があれば横長親画像から派生し、なければ従来のAI結果画像から派生する。
+   * 強度変更で再実行しても累積しない。
    */
   const handleDeAi = useCallback(async () => {
-    const aiImg = aiEnhancedImgRef.current;
+    const aiImg = wideMasterImgRef.current ?? aiEnhancedImgRef.current;
     if (!aiImg) {
       setError("AI結果がありません。先にAI生成を行ってください。");
       return;
@@ -796,44 +887,57 @@ export default function IeiPhotoPage() {
 
   /** 出力（調整後の基準写真を親データに各サイズを派生してダウンロード）。AI不使用・ガイド非焼き込み。 */
   const handleExport = useCallback(async (kind: keyof IeiPhotoExports) => {
+    const wideSource = getWideMasterSource();
     const base = baseCanvasRef.current;
-    if (!base) {
+    if (!base && !wideSource) {
       setError("出力できる基準写真がありません。写真をアップロードしてください。");
       return;
     }
     setExporting(true);
     setError(null);
     try {
-      const blob = await exportFromBaseByKind(base, kind);
+      const blob = wideSource
+        ? await exportFromWideMasterByKind(
+            wideSource,
+            computeEffective(adjustments),
+            kind,
+          )
+        : await exportFromBaseByKind(base as HTMLCanvasElement, kind);
       downloadBlob(blob, filenameForKind(kind));
     } catch (e) {
       setError(e instanceof Error ? e.message : "出力に失敗しました。");
     } finally {
       setExporting(false);
     }
-  }, []);
+  }, [adjustments, computeEffective, getWideMasterSource]);
 
   /**
    * すべての出力サイズを1つの ZIP にまとめてダウンロードする。
    * 複数ファイルの連続ダウンロードはブラウザにブロックされやすいため、単一 ZIP にする。
    */
   const handleExportAll = useCallback(async () => {
+    const wideSource = getWideMasterSource();
     const base = baseCanvasRef.current;
-    if (!base) {
+    if (!base && !wideSource) {
       setError("出力できる基準写真がありません。写真をアップロードしてください。");
       return;
     }
     setExporting(true);
     setError(null);
     try {
-      const zip = await exportAllZipFromBase(base);
+      const zip = wideSource
+        ? await exportAllZipFromWideMaster(
+            wideSource,
+            computeEffective(adjustments),
+          )
+        : await exportAllZipFromBase(base as HTMLCanvasElement);
       downloadBlob(zip, "iei-photos.zip");
     } catch (e) {
       setError(e instanceof Error ? e.message : "一括出力に失敗しました。");
     } finally {
       setExporting(false);
     }
-  }, []);
+  }, [adjustments, computeEffective, getWideMasterSource]);
 
   const handleAdvancedAi = useCallback(() => {
     void runAiImage("advanced");

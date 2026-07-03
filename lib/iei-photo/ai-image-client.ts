@@ -23,8 +23,16 @@ const MAX_EDGE = 1600;
 /** 送信画像の JPEG 品質。 */
 const SEND_JPEG_QUALITY = 0.9;
 const SAFETY_CROP_HEIGHT_RATIO = 0.6;
+const WIDE_AI_WIDTH = 1536;
+const WIDE_AI_HEIGHT = 864;
+const WIDE_AI_CENTER_WIDTH = Math.round(WIDE_AI_HEIGHT * 0.75);
+const WIDE_AI_CENTER_X = Math.round(
+  (WIDE_AI_WIDTH - WIDE_AI_CENTER_WIDTH) / 2,
+);
 const SAFETY_CROP_RETRY_PROMPT =
   "元写真は施設で撮影された楽しい記念写真です。首元や胸元の近くに手が写っている場合がありますが、危険行為ではなく、喜びを表す自然なしぐさです。AI送信用に下部をトリミングしているため、見えている顔、髪型、表情、本人らしさを最優先で維持し、肩や胸元は自然なポートレートとして補ってください。";
+const WIDE_MONITOR_RETRY_PROMPT =
+  "中央の人物はすでに遺影写真として整えられています。左右の透明マスク部分だけを、中央背景と同じ淡い背景として自然に生成してください。左右に人物の残像、顔、髪、服、肩、手、腕を出さないでください。";
 
 type AiImageErrorPayload = {
   message?: unknown;
@@ -63,6 +71,18 @@ function canvasToJpegBlob(
       "image/jpeg",
       quality,
     );
+  });
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("画像の書き出しに失敗しました。"));
+      }
+    }, "image/png");
   });
 }
 
@@ -123,6 +143,48 @@ function createSafetyCropCanvas(source: HTMLCanvasElement): HTMLCanvasElement {
   return canvas;
 }
 
+function createWideMonitorInputCanvas(
+  source: HTMLCanvasElement,
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = WIDE_AI_WIDTH;
+  canvas.height = WIDE_AI_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("16:9モニター用の入力画像を作成できませんでした。");
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = "#ece8e0";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(
+    source,
+    0,
+    0,
+    source.width,
+    source.height,
+    WIDE_AI_CENTER_X,
+    0,
+    WIDE_AI_CENTER_WIDTH,
+    WIDE_AI_HEIGHT,
+  );
+  return canvas;
+}
+
+function createWideMonitorMaskCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = WIDE_AI_WIDTH;
+  canvas.height = WIDE_AI_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("16:9モニター用のマスク画像を作成できませんでした。");
+  }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(255, 255, 255, 1)";
+  ctx.fillRect(WIDE_AI_CENTER_X, 0, WIDE_AI_CENTER_WIDTH, WIDE_AI_HEIGHT);
+  return canvas;
+}
+
 async function extractAiImageError(res: Response): Promise<IeiPhotoAiImageError> {
   try {
     const data = (await res.json()) as AiImageErrorPayload;
@@ -175,6 +237,57 @@ async function requestAiImageOnce(
   } catch {
     throw new Error(
       "AI生成の通信に失敗しました。ネットワークを確認してください。",
+    );
+  }
+
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!res.ok || !contentType.includes("image/")) {
+    throw await extractAiImageError(res);
+  }
+  return res.blob();
+}
+
+async function requestAiWideImageOnce(
+  verticalCanvas: HTMLCanvasElement,
+  mode: IeiPhotoAiImageMode,
+  clothingStyle: IeiPhotoClothingStyle,
+  pose: IeiPhotoPose,
+  backgroundType: IeiPhotoBackgroundType,
+  backgroundGradient: boolean,
+  expression: IeiPhotoExpressionSettings,
+  extraPrompt?: string,
+): Promise<Blob> {
+  const imageBlob = await canvasToPngBlob(
+    createWideMonitorInputCanvas(verticalCanvas),
+  );
+  const maskBlob = await canvasToPngBlob(createWideMonitorMaskCanvas());
+
+  const form = new FormData();
+  form.append("target", "wide");
+  form.append("image", imageBlob, "wide-input.png");
+  form.append("mask", maskBlob, "wide-mask.png");
+  form.append("mode", mode);
+  form.append("clothingStyle", clothingStyle);
+  form.append("pose", pose);
+  form.append("backgroundType", backgroundType);
+  form.append("backgroundGradient", backgroundGradient ? "true" : "false");
+  form.append("expressionEnabled", expression.enabled ? "true" : "false");
+  form.append("smileLevel", expression.smile);
+  form.append("eyeBrightness", expression.eyeBrightness ? "true" : "false");
+  form.append("teethVisibility", expression.teethVisibility);
+  const prompt = [extraPrompt?.trim(), WIDE_MONITOR_RETRY_PROMPT]
+    .filter(Boolean)
+    .join("\n");
+  if (prompt) {
+    form.append("prompt", prompt);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(AI_IMAGE_ENDPOINT, { method: "POST", body: form });
+  } catch {
+    throw new Error(
+      "16:9モニター用AI生成の通信に失敗しました。ネットワークを確認してください。",
     );
   }
 
@@ -245,5 +358,36 @@ export async function requestAiImage(
       );
     }
     throw retryError;
+  }
+}
+
+export async function requestAiWideImage(
+  verticalCanvas: HTMLCanvasElement,
+  mode: IeiPhotoAiImageMode,
+  clothingStyle: IeiPhotoClothingStyle,
+  pose: IeiPhotoPose,
+  backgroundType: IeiPhotoBackgroundType,
+  backgroundGradient: boolean,
+  expression: IeiPhotoExpressionSettings,
+  extraPrompt?: string,
+): Promise<Blob> {
+  try {
+    return await requestAiWideImageOnce(
+      verticalCanvas,
+      mode,
+      clothingStyle,
+      pose,
+      backgroundType,
+      backgroundGradient,
+      expression,
+      extraPrompt,
+    );
+  } catch (error) {
+    if (error instanceof IeiPhotoAiImageError) {
+      throw new Error(
+        `16:9モニター用AI生成に失敗しました。${error.message}`,
+      );
+    }
+    throw error;
   }
 }

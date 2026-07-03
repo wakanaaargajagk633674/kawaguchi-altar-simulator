@@ -212,3 +212,25 @@ export function buildAiPrompt(
   }
   return parts.join(" ");
 }
+
+export function buildWideMonitorPrompt(
+  backgroundType: IeiPhotoBackgroundType = "auto",
+  backgroundGradient = false,
+  extraPrompt?: string,
+): string {
+  const parts: string[] = [
+    "16:9モニター用の横長遺影写真として自然に仕上げてください。中央の人物、顔、髪型、表情、服装、位置、サイズ、中央背景はできるだけ維持してください。透明マスクで指定された左右部分だけを編集し、中央の人物を別人化、若返り、美化しすぎ、拡大縮小、移動しないでください。",
+    "左右部分は中央背景と同じ光、色、質感の自然な背景として生成してください。左右には人物の顔、髪、肌、服、肩、腕、手を複製、反転、ぼかし拡大、残像として出さないでください。縦の切れ目、境界線、貼り付け感が見えないように、1枚の横長写真として自然につなげてください。",
+  ];
+  parts.push(IEI_PHOTO_BACKGROUND_PROMPTS[backgroundType]);
+  if (backgroundGradient) {
+    parts.push(
+      "背景は選択した色を基調に、左右まで自然につながる淡いグラデーションにしてください。急な色変化や派手な模様は避けてください。",
+    );
+  }
+  const extra = extraPrompt?.trim();
+  if (extra) {
+    parts.push(extra);
+  }
+  return parts.join(" ");
+}
