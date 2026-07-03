@@ -192,10 +192,12 @@ type AiImageRunOptions = {
 };
 
 const HANDS_DOWN_PROMPT =
-  "顔や胸元の近くに上がっている手や腕がある場合は、顔の向き、体の向き、表情、髪型、本人らしさ、背景は保ったまま、手と腕だけを自然に下ろしてください。肩から下の姿勢は遺影写真として自然な上半身に整え、手は体の横または画面内で目立たない低い位置にしてください。顔のサイズ、位置、視線は変えないでください。";
+  "顔や胸元の近くに上がっている手や腕がある場合は、顔の向き、体の向き、表情、髪型、本人らしさ、背景は保ったまま、手と腕だけを自然に下ろしてください。人物全体を小さくしたり、腕まで入れるために引きの構図にしたりしないでください。遺影写真として顔と上半身を大きめに保ち、頭から胸元までが画面の中心にしっかり入る構図にしてください。手や腕は体の横または画面下の目立たない低い位置にし、必要なら画面下で自然に切れてもかまいません。顔のサイズ、位置、視線は小さくしないでください。";
 
 const HANDS_KEEP_PROMPT =
   "手や腕は元画像の位置、角度、見え方を維持してください。AI補正中に手や腕を下ろしたり、消したり、別の位置へ移動したりしないでください。";
+
+const HANDS_DOWN_MIN_ZOOM = 118;
 
 export default function IeiPhotoPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -632,9 +634,16 @@ export default function IeiPhotoPage() {
           label: "16:9背景生成中…",
         });
         const bgImage = await resolveBackgroundImage(background, "vertical");
+        const effectiveAdjustments = computeEffective(adjustments);
+        const wideBaseAdjustments = handsDown
+          ? {
+              ...effectiveAdjustments,
+              zoom: Math.max(effectiveAdjustments.zoom, HANDS_DOWN_MIN_ZOOM),
+            }
+          : effectiveAdjustments;
         const verticalCanvas = renderBasePhotoCanvas(
           img,
-          computeEffective(adjustments),
+          wideBaseAdjustments,
           background,
           bgImage,
         );
