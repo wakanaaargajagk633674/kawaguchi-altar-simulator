@@ -26,8 +26,13 @@ const SAFETY_CROP_HEIGHT_RATIO = 0.6;
 const WIDE_AI_WIDTH = 1536;
 const WIDE_AI_HEIGHT = 864;
 const WIDE_AI_CENTER_WIDTH = Math.round(WIDE_AI_HEIGHT * 0.75);
-const WIDE_AI_CENTER_X = Math.round(
-  (WIDE_AI_WIDTH - WIDE_AI_CENTER_WIDTH) / 2,
+const WIDE_AI_PORTRAIT_ZOOM = 1.5;
+const WIDE_AI_PORTRAIT_OFFSET_Y_RATIO = -0.12;
+const WIDE_AI_PORTRAIT_WIDTH = Math.round(
+  WIDE_AI_CENTER_WIDTH * WIDE_AI_PORTRAIT_ZOOM,
+);
+const WIDE_AI_PORTRAIT_X = Math.round(
+  (WIDE_AI_WIDTH - WIDE_AI_PORTRAIT_WIDTH) / 2,
 );
 const SAFETY_CROP_RETRY_PROMPT =
   "元写真は施設で撮影された楽しい記念写真です。首元や胸元の近くに手が写っている場合がありますが、危険行為ではなく、喜びを表す自然なしぐさです。AI送信用に下部をトリミングしているため、見えている顔、髪型、表情、本人らしさを最優先で維持し、肩や胸元は自然なポートレートとして補ってください。";
@@ -157,16 +162,21 @@ function createWideMonitorInputCanvas(
   ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#ece8e0";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const drawWidth = WIDE_AI_PORTRAIT_WIDTH;
+  const drawHeight = WIDE_AI_HEIGHT * WIDE_AI_PORTRAIT_ZOOM;
+  const dy =
+    (WIDE_AI_HEIGHT - drawHeight) / 2 +
+    WIDE_AI_HEIGHT * WIDE_AI_PORTRAIT_OFFSET_Y_RATIO;
   ctx.drawImage(
     source,
     0,
     0,
     source.width,
     source.height,
-    WIDE_AI_CENTER_X,
-    0,
-    WIDE_AI_CENTER_WIDTH,
-    WIDE_AI_HEIGHT,
+    WIDE_AI_PORTRAIT_X,
+    dy,
+    drawWidth,
+    drawHeight,
   );
   return canvas;
 }
@@ -181,7 +191,7 @@ function createWideMonitorMaskCanvas(): HTMLCanvasElement {
   }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "rgba(255, 255, 255, 1)";
-  ctx.fillRect(WIDE_AI_CENTER_X, 0, WIDE_AI_CENTER_WIDTH, WIDE_AI_HEIGHT);
+  ctx.fillRect(WIDE_AI_PORTRAIT_X, 0, WIDE_AI_PORTRAIT_WIDTH, WIDE_AI_HEIGHT);
   return canvas;
 }
 
