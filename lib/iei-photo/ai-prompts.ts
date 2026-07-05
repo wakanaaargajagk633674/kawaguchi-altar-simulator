@@ -18,6 +18,14 @@ import type {
   IeiPhotoPose,
 } from "./types";
 
+/**
+ * 肩にかかった紐類の除去指示（全モード・服装指定に関わらず常に適用）。
+ * リュック・ポーチ・バッグ・カメラ・IDカードなどの肩紐/ストラップは、
+ * 遺影写真として不要なため、無指定でも自然に取り除く。
+ */
+export const IEI_PHOTO_REMOVE_STRAP_PROMPT =
+  "リュック、ポーチ、バッグ、カメラ、たすき、IDカードなどの肩や首からかかっている紐・ストラップ・ひもが写っている場合は、遺影写真として不要なため、指定がなくても自然に取り除いてください。紐を消した部分は、その下にある服や肩の生地が自然に続いているように補ってください。服装自体（色、柄、襟元、肩、袖）は変えず、紐だけを除去してください。";
+
 /** モードごとの基本プロンプト（本人らしさ・顔特徴・背景明るさ補正を含む）。 */
 export const IEI_PHOTO_AI_BASE_PROMPTS: Record<IeiPhotoAiImageMode, string> = {
   advanced:
@@ -199,6 +207,7 @@ export function buildAiPrompt(
     parts.push(clothing);
   }
   parts.push(buildCompositionPrompt(clothingStyle));
+  parts.push(IEI_PHOTO_REMOVE_STRAP_PROMPT);
   const poseText = IEI_PHOTO_POSE_PROMPTS[pose];
   if (poseText) {
     parts.push(poseText);
