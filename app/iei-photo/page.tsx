@@ -80,6 +80,10 @@ import {
   filenameForKind,
   downloadBlob,
 } from "@/lib/iei-photo/client-export";
+import {
+  saveImageToDevice,
+  saveImagesToDevice,
+} from "@/lib/iei-photo/save-image";
 import type {
   IeiPhotoAdjustments,
   IeiPhotoAiImageMode,
@@ -912,7 +916,15 @@ export default function IeiPhotoPage() {
             kind,
           )
         : await exportFromBaseByKind(base as HTMLCanvasElement, kind);
-      downloadBlob(blob, filenameForKind(kind));
+      // モバイルは共有シート（写真アプリへ保存）、PCはダウンロード。
+      const result = await saveImageToDevice(blob, filenameForKind(kind));
+      setInfo(
+        result === "shared"
+          ? "共有メニューから「画像を保存」で端末に保存できます。"
+          : result === "canceled"
+            ? "保存をキャンセルしました。"
+            : "画像をダウンロードしました。",
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "出力に失敗しました。");
     } finally {
@@ -934,13 +946,28 @@ export default function IeiPhotoPage() {
     setExporting(true);
     setError(null);
     try {
-      const zip = wideSource
-        ? await exportAllZipFromWideMaster(
-            wideSource,
-            computeEffective(adjustments),
-          )
-        : await exportAllZipFromBase(base as HTMLCanvasElement);
-      downloadBlob(zip, "iei-photos.zip");
+      const adj = computeEffective(adjustments);
+      // 4サイズを個別に生成。モバイルは共有シートで一括保存、PCはZIPでダウンロード。
+      const items: { blob: Blob; filename: string }[] = [];
+      for (const kind of IEI_PHOTO_EXPORT_ORDER) {
+        const blob = wideSource
+          ? await exportFromWideMasterByKind(wideSource, adj, kind)
+          : await exportFromBaseByKind(base as HTMLCanvasElement, kind);
+        items.push({ blob, filename: filenameForKind(kind) });
+      }
+      const result = await saveImagesToDevice(items, async () => {
+        const zip = wideSource
+          ? await exportAllZipFromWideMaster(wideSource, adj)
+          : await exportAllZipFromBase(base as HTMLCanvasElement);
+        downloadBlob(zip, "iei-photos.zip");
+      });
+      setInfo(
+        result === "shared"
+          ? "共有メニューから4サイズをまとめて端末に保存できます。"
+          : result === "canceled"
+            ? "保存をキャンセルしました。"
+            : "4サイズをZIP（iei-photos.zip）でダウンロードしました。",
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "一括出力に失敗しました。");
     } finally {
@@ -1717,6 +1744,28 @@ export default function IeiPhotoPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* モバイル用の固定保存バー（PCは非表示。ヘッダーの保存ボタンが担う） */}
+        <div className="sticky bottom-0 z-20 flex items-center gap-2 border-t border-stone-200 bg-white/95 px-3 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur lg:hidden">
+          <button
+            type="button"
+            onClick={() => void handleExport("base")}
+            disabled={!canExport}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:opacity-40"
+          >
+            <IconExport />
+            {exporting ? "保存中…" : "この写真を保存"}
+          </button>
+          <button
+            type="button"
+            onClick={handleExportAll}
+            disabled={!canExport}
+            className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-stone-100 disabled:opacity-40"
+          >
+            <IconSave />
+            4サイズ
+          </button>
         </div>
       </div>
     </div>
