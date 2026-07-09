@@ -26,11 +26,34 @@ function toFile(blob: Blob, filename: string): File {
 }
 
 /**
+ * スマホ / タブレットなどのタッチ端末か。
+ *
+ * Windows の Edge/Chrome も Web Share API に対応しているため、共有シートを
+ * 無条件に使うと PC で「共有」ダイアログが開き、従来のダウンロード保存が
+ * できなくなる。共有はタッチ端末に限定し、PC ではダウンロードへ回す。
+ */
+function isTouchDevice(): boolean {
+  if (typeof navigator === "undefined" || typeof window === "undefined") {
+    return false;
+  }
+  // 細かいポインタ（マウス）が無く、粗いポインタ（指）が主なら端末とみなす。
+  const coarse =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches;
+  const hasTouch = navigator.maxTouchPoints > 0;
+  return coarse && hasTouch;
+}
+
+/**
  * navigator.share でこれらのファイルを共有できるか。
- * iOS/Android では true になり、共有シート経由で端末へ保存できる。
+ * iOS/Android などのタッチ端末でのみ true にし、共有シート経由で端末へ保存する。
+ * PC（マウス環境）では false を返し、ダウンロード保存にフォールバックさせる。
  */
 export function canShareFiles(files: File[]): boolean {
   if (typeof navigator === "undefined") {
+    return false;
+  }
+  if (!isTouchDevice()) {
     return false;
   }
   const nav = navigator as ShareCapableNavigator;
