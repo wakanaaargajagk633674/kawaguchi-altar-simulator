@@ -68,6 +68,9 @@ export type EstimateSummary = {
   funeralMealName: string;
   funeralMealPeople: number;
   funeralMealAmount: number;
+  childMealLines: EstimateSingleFoodLine[];
+  childMealAmount: number;
+  childMealPeople: number;
   funeralMealHallFeeName?: string;
   funeralMealHallFeeAmount: number;
   funeralStaffCount: number;
@@ -205,6 +208,15 @@ export default function EstimatePanel({ estimate }: EstimatePanelProps) {
               amount={estimate.funeralMealAmount}
             />
           ) : null}
+
+          {estimate.childMealLines.map((line) => (
+            <EstimateLine
+              key={line.id}
+              label="子供膳"
+              detail={`${line.name} ${formatYen(line.unitPrice)} × ${line.quantity}${line.unitLabel}`}
+              amount={line.amount}
+            />
+          ))}
 
           {estimate.funeralMealHallFeeAmount > 0 &&
           estimate.funeralMealHallFeeName ? (

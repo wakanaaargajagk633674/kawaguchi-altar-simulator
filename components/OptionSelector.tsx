@@ -11,6 +11,7 @@ import {
   returnGifts,
   restingCostConfig,
   serviceStaffConfig,
+  childMealOptions,
   singleFoodOptions,
   type AltarUpgrade,
   type OtherItemInput,
@@ -43,6 +44,8 @@ type OptionSelectorProps = {
   funeralMealPeople: number;
   onFuneralMealChange: (optionId: string) => void;
   onFuneralMealPeopleChange: (people: string) => void;
+  childMealCounts: Record<string, number>;
+  onChildMealCountChange: (optionId: string, quantity: string) => void;
   singleFoodCounts: Record<string, number>;
   onSingleFoodCountChange: (optionId: string, quantity: string) => void;
   returnGiftInputs: ReturnGiftInput[];
@@ -503,6 +506,8 @@ export default function OptionSelector({
   funeralMealPeople,
   onFuneralMealChange,
   onFuneralMealPeopleChange,
+  childMealCounts,
+  onChildMealCountChange,
   singleFoodCounts,
   onSingleFoodCountChange,
   returnGiftInputs,
@@ -740,6 +745,31 @@ export default function OptionSelector({
                 </span>
               </div>
             ) : null}
+          </div>
+
+          <div>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-base font-semibold text-slate-900">子供膳</h3>
+              <p className="text-sm font-medium text-slate-600">
+                会席膳とあわせてご注文いただけます
+              </p>
+            </div>
+            <div className="grid gap-2 2xl:grid-cols-2">
+              {childMealOptions.map((option) => (
+                <QuantityRow
+                  key={option.id}
+                  image={option.image}
+                  name={option.name}
+                  priceLabel={`${formatYen(option.price)} / ${option.unitLabel}`}
+                  quantity={childMealCounts[option.id] ?? 0}
+                  unitLabel={option.unitLabel}
+                  inputId={`child-meal-${option.id}`}
+                  onQuantityChange={(value) =>
+                    onChildMealCountChange(option.id, value)
+                  }
+                />
+              ))}
+            </div>
           </div>
 
           <Collapsible

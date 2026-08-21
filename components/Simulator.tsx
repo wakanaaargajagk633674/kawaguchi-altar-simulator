@@ -17,6 +17,7 @@ import {
   defaultOtherItems,
   defaultReturnGiftInputs,
   dryIceCostConfig,
+  childMealOptions,
   funeralMealHallFeeOption,
   funeralMealOptions,
   funeralPlans,
@@ -42,6 +43,14 @@ import { cn, formatYen, toNonNegativeInteger } from "@/lib/simulatorUtils";
 
 const defaultPlan =
   funeralPlans.find((plan) => plan.category === "one_day") ?? funeralPlans[0];
+
+const defaultChildMealCounts = childMealOptions.reduce<Record<string, number>>(
+  (counts, option) => {
+    counts[option.id] = 0;
+    return counts;
+  },
+  {},
+);
 
 const defaultSingleFoodCounts = singleFoodOptions.reduce<Record<string, number>>(
   (counts, option) => {
@@ -102,6 +111,9 @@ export default function Simulator() {
   const [singleFoodCounts, setSingleFoodCounts] = useState<Record<string, number>>(
     defaultSingleFoodCounts,
   );
+  const [childMealCounts, setChildMealCounts] = useState<
+    Record<string, number>
+  >(defaultChildMealCounts);
   const [returnGiftInputs, setReturnGiftInputs] = useState<ReturnGiftInput[]>(
     () => defaultReturnGiftInputs.map((input) => ({ ...input })),
   );
@@ -194,9 +206,42 @@ export default function Simulator() {
       selectedFuneralMeal.price > 0 ? funeralMealPeople : 0;
     const funeralMealAmount =
       selectedFuneralMeal.price * effectiveFuneralPeople;
+
+    // 子供膳は会席膳（告別料理）と併用できるよう、独立した数量で加算する。
+    const childMealLines = childMealOptions
+      .map((option) => {
+        const quantity = childMealCounts[option.id] ?? 0;
+
+        return {
+          id: option.id,
+          name: option.name,
+          quantity,
+          unitLabel: option.unitLabel,
+          servings: option.servings,
+          includeInServingStaffCalculation:
+            option.includeInServingStaffCalculation,
+          unitPrice: option.price,
+          amount: option.price * quantity,
+          image: option.image,
+        };
+      })
+      .filter((line) => line.quantity > 0 && line.amount > 0);
+    const childMealAmount = childMealLines.reduce(
+      (sum, line) => sum + line.amount,
+      0,
+    );
+    const childMealPeople = childMealLines.reduce(
+      (sum, line) => sum + line.servings * line.quantity,
+      0,
+    );
+
     const funeralMealHallFeeAmount =
-      funeralMealAmount > 0 ? funeralMealHallFeeOption.price : 0;
-    const funeralStaffCount = staffCountForPeople(effectiveFuneralPeople);
+      funeralMealAmount + childMealAmount > 0
+        ? funeralMealHallFeeOption.price
+        : 0;
+    const funeralStaffCount = staffCountForPeople(
+      effectiveFuneralPeople + childMealPeople,
+    );
     const funeralStaffAmount =
       funeralStaffCount * serviceStaffConfig.pricePerPerson;
 
@@ -264,6 +309,7 @@ export default function Simulator() {
       wakeMealAmount +
       singleFoodAmount +
       funeralMealAmount +
+      childMealAmount +
       funeralMealHallFeeAmount +
       wakeStaffAmount +
       funeralStaffAmount +
@@ -304,6 +350,9 @@ export default function Simulator() {
       funeralMealName: selectedFuneralMeal.name,
       funeralMealPeople: effectiveFuneralPeople,
       funeralMealAmount,
+      childMealLines,
+      childMealAmount,
+      childMealPeople,
       funeralMealHallFeeName:
         funeralMealHallFeeAmount > 0
           ? funeralMealHallFeeOption.name
@@ -329,6 +378,7 @@ export default function Simulator() {
     };
   }, [
     dryIceDays,
+    childMealCounts,
     funeralMealPeople,
     hasMembership,
     isAltarUpgradeAvailable,
@@ -427,6 +477,19 @@ export default function Simulator() {
       });
     }
 
+    estimate.childMealLines.forEach((line) => {
+      items.push({
+        id: `child-meal-${line.id}`,
+        category: "子供膳",
+        name: line.name,
+        image: line.image,
+        quantityLabel: `${line.quantity}${line.unitLabel}`,
+        unitPrice: line.unitPrice,
+        subtotal: line.amount,
+      });
+    });
+
+
     if (estimate.restingAmount > 0) {
       items.push({
         id: "resting-days",
@@ -496,6 +559,7 @@ export default function Simulator() {
     estimate.dryIceAmount,
     estimate.dryIceDays,
     estimate.dryIceUnitPrice,
+    estimate.childMealLines,
     estimate.funeralMealAmount,
     estimate.funeralMealPeople,
     estimate.funeralStaffCount,
@@ -597,6 +661,17 @@ export default function Simulator() {
         subtotal: estimate.funeralMealAmount,
       });
     }
+
+    estimate.childMealLines.forEach((line) => {
+      rows.push({
+        id: `child-meal-${line.id}`,
+        category: "子供膳",
+        name: line.name,
+        quantity: `${line.quantity}${line.unitLabel}`,
+        unitPrice: line.unitPrice,
+        subtotal: line.amount,
+      });
+    });
 
     if (
       estimate.funeralMealHallFeeAmount > 0 &&
@@ -764,6 +839,13 @@ export default function Simulator() {
 
   const handleSingleFoodCountChange = (optionId: string, value: string) => {
     setSingleFoodCounts((currentCounts) => ({
+      ...currentCounts,
+      [optionId]: toNonNegativeInteger(value),
+    }));
+  };
+
+  const handleChildMealCountChange = (optionId: string, value: string) => {
+    setChildMealCounts((currentCounts) => ({
       ...currentCounts,
       [optionId]: toNonNegativeInteger(value),
     }));
@@ -1008,6 +1090,8 @@ export default function Simulator() {
             onFuneralMealPeopleChange={(value) =>
               setFuneralMealPeople(toNonNegativeInteger(value))
             }
+            childMealCounts={childMealCounts}
+            onChildMealCountChange={handleChildMealCountChange}
             singleFoodCounts={singleFoodCounts}
             onSingleFoodCountChange={handleSingleFoodCountChange}
             returnGiftInputs={returnGiftInputs}

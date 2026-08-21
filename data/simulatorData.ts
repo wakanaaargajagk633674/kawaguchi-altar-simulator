@@ -672,22 +672,6 @@ export const wakeMealConfig = {
 export const funeralMealOptions: PriceOption[] = [
   { id: "none", name: "不要", price: 0 },
   {
-    id: "kodomo_b",
-    name: "子供膳B（1人前）",
-    price: 1760,
-    image: "/images/meals/shunsaitei/kodomo-b.jpg",
-    description:
-      "グラタンや鶏の唐揚げ、フルーツなどを車の器に入れた小さなお子様向けの御膳です。（旬菜亭）",
-  },
-  {
-    id: "kodomo_a",
-    name: "子供膳A（1人前）",
-    price: 2310,
-    image: "/images/meals/shunsaitei/kodomo-a.jpg",
-    description:
-      "エビフライやチキンライスなどお子様に人気のあるメニューを取り入れた御膳です。（旬菜亭）",
-  },
-  {
     id: "asagiri",
     name: "朝霧〈あさぎり〉（1人前）",
     price: 4620,
@@ -774,6 +758,28 @@ export const funeralMealOptions: PriceOption[] = [
     image: "/images/meals/shunsaitei/mizukagami.jpg",
     description:
       "前菜盛り合わせ、国産牛のローストビーフ、ウニの茶碗蒸し、鰻のひつまぶしまで堪能できるコース料理です。（旬菜亭）",
+  },
+];
+
+// 会席膳（告別料理）と併用できるお子様向けの御膳。数量で入力する。
+export const childMealOptions: SingleFoodOption[] = [
+  {
+    id: "kodomo_a",
+    name: "子供膳A",
+    price: 2310,
+    servings: 1,
+    includeInServingStaffCalculation: true,
+    unitLabel: "人前",
+    image: "/images/meals/shunsaitei/kodomo-a.jpg",
+  },
+  {
+    id: "kodomo_b",
+    name: "子供膳B",
+    price: 1760,
+    servings: 1,
+    includeInServingStaffCalculation: true,
+    unitLabel: "人前",
+    image: "/images/meals/shunsaitei/kodomo-b.jpg",
   },
 ];
 
