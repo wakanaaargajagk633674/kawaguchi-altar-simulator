@@ -1,4 +1,7 @@
+"use client";
+
 import Image from "next/image";
+import { useMemo, useState } from "react";
 import {
   altarUpgrades,
   careOptions,
@@ -15,6 +18,7 @@ import {
   type ReturnGiftInput,
   urnCoverOption,
   urnOptions,
+  wakeMealConfig,
   wakeMealOptions,
 } from "@/data/simulatorData";
 import { cn, formatYen } from "@/lib/simulatorUtils";
@@ -192,6 +196,224 @@ function selectedOption(options: PriceOption[], selectedId: string) {
   return options.find((option) => option.id === selectedId) ?? options[0];
 }
 
+/** 数量の増減。行の中に収まる小さめのステッパー。 */
+function QuantityStepper({
+  id,
+  label,
+  value,
+  unitLabel,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  unitLabel: string;
+  onChange: (value: string) => void;
+}) {
+  const buttonClass =
+    "h-9 w-9 shrink-0 rounded-md border border-stone-300 bg-white text-lg font-bold text-slate-700 transition hover:border-amber-500 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-600 disabled:opacity-40";
+
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      <button
+        type="button"
+        aria-label={`${label}を1${unitLabel}減らす`}
+        disabled={value <= 0}
+        onClick={() => onChange(String(Math.max(0, value - 1)))}
+        className={buttonClass}
+      >
+        −
+      </button>
+      <input
+        id={id}
+        type="number"
+        min={0}
+        inputMode="numeric"
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 w-12 rounded-md border border-stone-300 bg-white px-1 text-center text-base font-semibold text-slate-950 outline-none transition focus:border-amber-600 focus:ring-2 focus:ring-amber-200"
+      />
+      <button
+        type="button"
+        aria-label={`${label}を1${unitLabel}増やす`}
+        onClick={() => onChange(String(value + 1))}
+        className={buttonClass}
+      >
+        ＋
+      </button>
+    </span>
+  );
+}
+
+/** 画像・名称・単価・数量を1行にまとめた省スペース行。 */
+function QuantityRow({
+  image,
+  name,
+  priceLabel,
+  quantity,
+  unitLabel,
+  inputId,
+  onQuantityChange,
+  children,
+}: {
+  image?: string;
+  name: string;
+  priceLabel: string;
+  quantity: number;
+  unitLabel: string;
+  inputId: string;
+  onQuantityChange: (value: string) => void;
+  children?: React.ReactNode;
+}) {
+  const isActive = quantity > 0;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-lg border p-2 transition",
+        isActive
+          ? "border-amber-600 bg-amber-50 shadow-sm"
+          : "border-stone-200 bg-white",
+      )}
+    >
+      <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded-md bg-stone-100">
+        {image ? (
+          <Image
+            src={image}
+            alt={name}
+            fill
+            unoptimized
+            className="object-cover"
+            sizes="56px"
+          />
+        ) : null}
+      </span>
+      <span className="block min-w-0 flex-1">
+        <span className="line-clamp-2 block text-sm font-semibold leading-5 text-slate-950">
+          {name}
+        </span>
+        <span className="mt-0.5 block text-sm font-medium text-slate-700">
+          {priceLabel}
+        </span>
+        {children}
+      </span>
+      <QuantityStepper
+        id={inputId}
+        label={`${name}の数量`}
+        value={quantity}
+        unitLabel={unitLabel}
+        onChange={onQuantityChange}
+      />
+    </div>
+  );
+}
+
+/** 通夜料理・告別料理などの単一選択。写真タイルを並べて縦の長さを抑える。 */
+function PickerGrid({
+  options,
+  selectedId,
+  onSelect,
+}: {
+  options: PriceOption[];
+  selectedId: string;
+  onSelect: (optionId: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+      {options.map((option) => {
+        const isSelected = option.id === selectedId;
+
+        return (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={isSelected}
+            onClick={() => onSelect(option.id)}
+            className={cn(
+              "rounded-lg border p-2 text-left transition hover:border-amber-500 hover:bg-amber-50/40",
+              "focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2",
+              isSelected
+                ? "border-amber-600 bg-amber-50 shadow-sm"
+                : "border-stone-200 bg-white",
+            )}
+          >
+            <span className="relative block aspect-[4/3] overflow-hidden rounded-md bg-stone-100">
+              {option.image ? (
+                <Image
+                  src={option.image}
+                  alt={option.name}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                  sizes="(min-width: 1280px) 12vw, (min-width: 640px) 20vw, 45vw"
+                />
+              ) : (
+                <span className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">
+                  選択しない
+                </span>
+              )}
+            </span>
+            <span className="mt-2 line-clamp-2 block text-sm font-semibold leading-5 text-slate-950">
+              {option.name}
+            </span>
+            <span className="mt-1 block text-sm font-bold text-amber-800">
+              {option.price > 0 ? formatYen(option.price) : "加算なし"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 項目数が多いブロックを折りたたむ。 */
+function Collapsible({
+  title,
+  summary,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string;
+  summary: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-left transition hover:border-amber-500 hover:bg-amber-50/60 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2"
+      >
+        <span className="min-w-0">
+          <span className="block text-base font-semibold text-slate-900">
+            {title}
+          </span>
+          <span className="block text-sm font-medium text-slate-600">
+            {summary}
+          </span>
+        </span>
+        <span className="shrink-0 text-sm font-semibold text-amber-800">
+          {isOpen ? "閉じる ▲" : "開く ▼"}
+        </span>
+      </button>
+      {isOpen ? <div className="mt-3">{children}</div> : null}
+    </div>
+  );
+}
+
+const giftPriceBands = [
+  { id: "all", label: "すべて", min: 0, max: Number.POSITIVE_INFINITY },
+  { id: "b2", label: "〜2,999円", min: 0, max: 2999 },
+  { id: "b3", label: "3,000円台", min: 3000, max: 3999 },
+  { id: "b4", label: "4,000円台", min: 4000, max: 4999 },
+  { id: "b5", label: "5,000円〜", min: 5000, max: Number.POSITIVE_INFINITY },
+] as const;
+
 function AltarDesignGrid({
   upgrade,
   selectedDesignId,
@@ -313,6 +535,47 @@ export default function OptionSelector({
   const visibleOtherItems = otherItems.slice(0, visibleOtherItemCount);
   const canAddOtherItem = visibleOtherItemCount < otherItems.length;
 
+  const [isSingleFoodOpen, setIsSingleFoodOpen] = useState(false);
+  const [isGiftOpen, setIsGiftOpen] = useState(false);
+  const [giftQuery, setGiftQuery] = useState("");
+  const [giftBandId, setGiftBandId] =
+    useState<(typeof giftPriceBands)[number]["id"]>("all");
+
+  const selectedSingleFoodCount = singleFoodOptions.filter(
+    (option) => (singleFoodCounts[option.id] ?? 0) > 0,
+  ).length;
+
+  const selectedGifts = returnGifts
+    .map((gift) => {
+      const input = returnGiftInputById.get(gift.id);
+      return {
+        gift,
+        quantity: input?.quantity ?? 0,
+        modelNumber: input?.modelNumber ?? gift.defaultModelNumber,
+      };
+    })
+    .filter((line) => line.quantity > 0);
+
+  const filteredGifts = useMemo(() => {
+    const band =
+      giftPriceBands.find((item) => item.id === giftBandId) ??
+      giftPriceBands[0];
+    const query = giftQuery.trim().toLowerCase();
+
+    return returnGifts.filter((gift) => {
+      if (gift.price < band.min || gift.price > band.max) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return (
+        gift.name.toLowerCase().includes(query) ||
+        gift.defaultModelNumber.toLowerCase().includes(query)
+      );
+    });
+  }, [giftBandId, giftQuery]);
+
   return (
     <section className="space-y-5">
       <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
@@ -406,109 +669,106 @@ export default function OptionSelector({
           </p>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           <div>
-            <h3 className="mb-3 text-base font-semibold text-slate-900">
-              通夜料理
-            </h3>
-            <OptionGrid
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-base font-semibold text-slate-900">
+                通夜料理
+              </h3>
+              <p className="text-sm font-medium text-slate-600">
+                1セット{wakeMealConfig.servingsPerSet}名様分
+              </p>
+            </div>
+            <PickerGrid
               options={wakeMealOptions}
               selectedId={selectedWakeMealId}
               onSelect={onWakeMealChange}
-              columns="wide"
             />
-            <NumberField
-              id="wake-meal-sets"
-              label="セット数"
-              value={wakeMealSets}
-              disabled={selectedWakeMeal.price === 0}
-              suffix="セット"
-              onChange={onWakeMealSetsChange}
-            />
-            {wakeStaffCount > 0 ? (
-              <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
-                配膳人 {wakeStaffCount}名
-              </p>
+            {selectedWakeMeal.price > 0 ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                <span className="text-base font-semibold text-slate-800">
+                  セット数
+                </span>
+                <span className="flex items-center gap-3">
+                  {wakeStaffCount > 0 ? (
+                    <span className="text-sm font-semibold text-amber-900">
+                      配膳人 {wakeStaffCount}名
+                    </span>
+                  ) : null}
+                  <QuantityStepper
+                    id="wake-meal-sets"
+                    label="通夜料理のセット数"
+                    value={wakeMealSets}
+                    unitLabel="セット"
+                    onChange={onWakeMealSetsChange}
+                  />
+                </span>
+              </div>
             ) : null}
           </div>
 
           <div>
-            <h3 className="mb-3 text-base font-semibold text-slate-900">
-              告別料理
-            </h3>
-            <OptionGrid
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-base font-semibold text-slate-900">
+                告別料理
+              </h3>
+              <p className="text-sm font-medium text-slate-600">1人前</p>
+            </div>
+            <PickerGrid
               options={funeralMealOptions}
               selectedId={selectedFuneralMealId}
               onSelect={onFuneralMealChange}
-              columns="wide"
             />
-            <NumberField
-              id="funeral-meal-people"
-              label="人数"
-              value={funeralMealPeople}
-              disabled={selectedFuneralMeal.price === 0}
-              suffix="名様分"
-              onChange={onFuneralMealPeopleChange}
-            />
-            {funeralStaffCount > 0 ? (
-              <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
-                配膳人 {funeralStaffCount}名
-              </p>
+            {selectedFuneralMeal.price > 0 ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                <span className="text-base font-semibold text-slate-800">
+                  人数
+                </span>
+                <span className="flex items-center gap-3">
+                  {funeralStaffCount > 0 ? (
+                    <span className="text-sm font-semibold text-amber-900">
+                      配膳人 {funeralStaffCount}名
+                    </span>
+                  ) : null}
+                  <QuantityStepper
+                    id="funeral-meal-people"
+                    label="告別料理の人数"
+                    value={funeralMealPeople}
+                    unitLabel="名"
+                    onChange={onFuneralMealPeopleChange}
+                  />
+                </span>
+              </div>
             ) : null}
           </div>
 
-          <div>
-            <h3 className="mb-3 text-base font-semibold text-slate-900">
-              単品料理
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
-              {singleFoodOptions.map((option) => {
-                const quantity = singleFoodCounts[option.id] ?? 0;
-
-                return (
-                  <div
-                    key={option.id}
-                    className="rounded-lg border border-stone-200 bg-stone-50 p-3"
-                  >
-                    <div className="grid grid-cols-[82px_minmax(0,1fr)] gap-3">
-                      <div className="relative h-20 overflow-hidden rounded-md bg-white">
-                        {option.image ? (
-                          <Image
-                            src={option.image}
-                            alt={option.name}
-                            fill
-                            unoptimized
-                            className="object-contain p-2"
-                            sizes="82px"
-                          />
-                        ) : null}
-                      </div>
-                      <div>
-                        <h4 className="text-base font-semibold text-slate-950">
-                          {option.name}
-                        </h4>
-                        <p className="mt-1 text-sm font-medium text-slate-700">
-                          {formatYen(option.price)} / {option.unitLabel}
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-slate-600">
-                          {option.description}
-                        </p>
-                      </div>
-                    </div>
-                    <NumberField
-                      id={`single-food-${option.id}`}
-                      label="数量"
-                      value={quantity}
-                      suffix={option.unitLabel}
-                      onChange={(value) =>
-                        onSingleFoodCountChange(option.id, value)
-                      }
-                    />
-                  </div>
-                );
-              })}
+          <Collapsible
+            title="単品料理"
+            summary={
+              selectedSingleFoodCount > 0
+                ? `${selectedSingleFoodCount}品を選択中`
+                : `寿司・天ぷらなど${singleFoodOptions.length}品`
+            }
+            isOpen={isSingleFoodOpen}
+            onToggle={() => setIsSingleFoodOpen((open) => !open)}
+          >
+            <div className="grid gap-2 2xl:grid-cols-2">
+              {singleFoodOptions.map((option) => (
+                <QuantityRow
+                  key={option.id}
+                  image={option.image}
+                  name={option.name}
+                  priceLabel={`${formatYen(option.price)} / ${option.unitLabel}`}
+                  quantity={singleFoodCounts[option.id] ?? 0}
+                  unitLabel={option.unitLabel}
+                  inputId={`single-food-${option.id}`}
+                  onQuantityChange={(value) =>
+                    onSingleFoodCountChange(option.id, value)
+                  }
+                />
+              ))}
             </div>
-          </div>
+          </Collapsible>
         </div>
       </div>
 
@@ -516,98 +776,128 @@ export default function OptionSelector({
         <div className="mb-4">
           <p className="text-sm font-semibold text-amber-700">返礼品</p>
           <h2 className="mt-1 text-xl font-semibold text-slate-950">
-            返礼品の型番・数量を入力
+            返礼品を選択
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             数量が1個以上の返礼品のみ、概算金額と確認欄に反映されます。
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
-          {returnGifts.map((gift) => {
-            const input = returnGiftInputById.get(gift.id);
-            const modelNumber = input?.modelNumber ?? gift.defaultModelNumber;
-            const quantity = input?.quantity ?? 0;
-            const subtotal = quantity > 0 ? gift.price * quantity : 0;
-
-            return (
-              <article
+        {selectedGifts.length > 0 ? (
+          <ul className="mb-3 space-y-1 rounded-lg bg-amber-50 p-3">
+            {selectedGifts.map(({ gift, quantity, modelNumber }) => (
+              <li
                 key={gift.id}
-                className="rounded-lg border border-stone-200 bg-stone-50 p-3"
+                className="flex flex-wrap items-baseline justify-between gap-2 text-sm font-semibold text-amber-900"
               >
-                <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-3">
-                  <div className="relative h-24 overflow-hidden rounded-md bg-white">
-                    {gift.image ? (
-                      <Image
-                        src={gift.image}
-                        alt={gift.name}
-                        fill
-                        unoptimized
-                        className="object-contain p-2"
-                        sizes="92px"
-                      />
-                    ) : null}
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-950">
-                      {gift.name}
-                    </h3>
-                    <p className="mt-1 text-sm font-medium text-slate-700">
-                      単価 {formatYen(gift.price)}
-                    </p>
-                    <p className="mt-2 rounded-md bg-white px-2 py-1 text-sm font-semibold text-slate-900">
-                      小計 {formatYen(subtotal)}
-                    </p>
-                  </div>
-                </div>
+                <span className="min-w-0 truncate">
+                  {modelNumber || gift.defaultModelNumber} × {quantity}個
+                </span>
+                <span>{formatYen(gift.price * quantity)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
-                <label className="mt-3 block">
-                  <span className="text-sm font-semibold text-slate-700">
-                    型番
-                  </span>
-                  <input
-                    type="text"
-                    value={modelNumber}
-                    onChange={(event) =>
-                      onReturnGiftChange(
-                        gift.id,
-                        "modelNumber",
-                        event.target.value,
-                      )
-                    }
-                    className="mt-1 h-12 w-full rounded-lg border border-stone-300 bg-white px-3 text-base font-medium text-slate-950 outline-none transition focus:border-amber-600 focus:ring-2 focus:ring-amber-200"
-                    placeholder="例：A-001"
-                  />
-                </label>
+        <Collapsible
+          title="返礼品カタログ（いなば園）"
+          summary={
+            selectedGifts.length > 0
+              ? `${selectedGifts.length}種類を選択中`
+              : `全${returnGifts.length}点から選択`
+          }
+          isOpen={isGiftOpen}
+          onToggle={() => setIsGiftOpen((open) => !open)}
+        >
+          <div className="space-y-3">
+            <input
+              type="search"
+              value={giftQuery}
+              onChange={(event) => setGiftQuery(event.target.value)}
+              placeholder="品名・型番で絞り込み（例：煎茶、AM-EB）"
+              className="h-12 w-full rounded-lg border border-stone-300 bg-white px-3 text-base font-medium text-slate-950 outline-none transition focus:border-amber-600 focus:ring-2 focus:ring-amber-200"
+            />
 
-                <label className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white p-3">
-                  <span className="text-base font-semibold text-slate-800">
-                    数量
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={0}
-                      inputMode="numeric"
-                      value={quantity}
-                      onChange={(event) =>
-                        onReturnGiftChange(
-                          gift.id,
-                          "quantity",
-                          event.target.value,
-                        )
+            <div className="flex flex-wrap gap-2">
+              {giftPriceBands.map((band) => (
+                <button
+                  key={band.id}
+                  type="button"
+                  aria-pressed={giftBandId === band.id}
+                  onClick={() => setGiftBandId(band.id)}
+                  className={cn(
+                    "min-h-10 rounded-full border px-3 text-sm font-semibold transition",
+                    giftBandId === band.id
+                      ? "border-amber-600 bg-amber-600 text-white"
+                      : "border-stone-300 bg-white text-slate-700 hover:border-amber-500 hover:bg-amber-50",
+                  )}
+                >
+                  {band.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-sm font-medium text-slate-600">
+              {filteredGifts.length}点を表示中
+            </p>
+
+            {filteredGifts.length === 0 ? (
+              <p className="rounded-lg bg-stone-50 p-3 text-sm font-semibold text-slate-700">
+                条件に合う返礼品がありません。
+              </p>
+            ) : (
+              <div className="grid max-h-[32rem] gap-2 overflow-y-auto pr-1 2xl:grid-cols-2">
+                {filteredGifts.map((gift) => {
+                  const input = returnGiftInputById.get(gift.id);
+                  const modelNumber =
+                    input?.modelNumber ?? gift.defaultModelNumber;
+                  const quantity = input?.quantity ?? 0;
+
+                  return (
+                    <QuantityRow
+                      key={gift.id}
+                      image={gift.image}
+                      name={gift.name}
+                      priceLabel={
+                        quantity > 0
+                          ? `${formatYen(gift.price)} / 小計 ${formatYen(
+                              gift.price * quantity,
+                            )}`
+                          : formatYen(gift.price)
                       }
-                      className="h-12 w-24 rounded-lg border border-stone-300 bg-white px-3 text-right text-lg font-semibold text-slate-950 outline-none transition focus:border-amber-600 focus:ring-2 focus:ring-amber-200"
-                    />
-                    <span className="text-sm font-medium text-slate-600">
-                      個
-                    </span>
-                  </span>
-                </label>
-              </article>
-            );
-          })}
-        </div>
+                      quantity={quantity}
+                      unitLabel="個"
+                      inputId={`return-gift-${gift.id}`}
+                      onQuantityChange={(value) =>
+                        onReturnGiftChange(gift.id, "quantity", value)
+                      }
+                    >
+                      {quantity > 0 ? (
+                        <span className="mt-1 flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-600">
+                            型番
+                          </span>
+                          <input
+                            type="text"
+                            value={modelNumber}
+                            onChange={(event) =>
+                              onReturnGiftChange(
+                                gift.id,
+                                "modelNumber",
+                                event.target.value,
+                              )
+                            }
+                            className="h-9 w-32 rounded-md border border-stone-300 bg-white px-2 text-sm font-medium text-slate-950 outline-none transition focus:border-amber-600 focus:ring-2 focus:ring-amber-200"
+                          />
+                        </span>
+                      ) : null}
+                    </QuantityRow>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </Collapsible>
       </div>
 
       <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
