@@ -638,101 +638,343 @@ export const altarUpgrades: AltarUpgrade[] = [
 
 export const wakeMealOptions: PriceOption[] = [
   { id: "none", name: "不要", price: 0 },
-  { id: "wake_a", name: "A（10人前）", price: 55308, image: "/images/meals/tsuya_a_10.jpg" },
-  { id: "wake_b", name: "B（10人前）", price: 61050, image: "/images/meals/tsuya_b_10.jpg" },
-  { id: "wake_c", name: "C（10人前）", price: 72666, image: "/images/meals/tsuya_c_10.jpg" },
-  { id: "wake_d", name: "D（10人前）", price: 91443, image: "/images/meals/tsuya_d_10.jpg" },
+  {
+    id: "set_tsumugi",
+    name: "紡〈つむぎ〉（5名様セット）",
+    price: 39490,
+    image: "/images/meals/shunsaitei/set-tsumugi.jpg",
+    description:
+      "上握り寿司、天ぷら、オードブル、味わい豊かな煮物を組み合わせたセットです。（旬菜亭）",
+  },
+  {
+    id: "set_mio",
+    name: "澪〈みお〉（5名様セット）",
+    price: 49170,
+    image: "/images/meals/shunsaitei/set-mio.jpg",
+    description:
+      "特上握り寿司、天ぷらとまい泉ヒレかつ、筑前煮、洋風オードブルの華やかなセットです。（旬菜亭）",
+  },
+  {
+    id: "set_yui",
+    name: "結〈ゆい〉（5名様セット）",
+    price: 59400,
+    image: "/images/meals/shunsaitei/set-yui.jpg",
+    description:
+      "極上握り寿司、天ぷら、温かな2種類の煮込み料理、国産牛のローストビーフのセットです。（旬菜亭）",
+  },
 ];
 
 export const wakeMealConfig = {
-  servingsPerSet: 10,
+  servingsPerSet: 5,
   unitLabel: "セット",
 };
 
 export const funeralMealOptions: PriceOption[] = [
   { id: "none", name: "不要", price: 0 },
-  { id: "funeral_a", name: "A（1人前）", price: 3630, image: "/images/meals/kokubetsu_a_1.jpg" },
-  { id: "funeral_b", name: "B（1人前）", price: 4400, image: "/images/meals/kokubetsu_b_1.jpg" },
-  { id: "funeral_c", name: "C（1人前）", price: 5390, image: "/images/meals/kokubetsu_c_1.jpg" },
-  { id: "funeral_d", name: "D（1人前）", price: 6490, image: "/images/meals/kokubetsu_d_1.jpg" },
-  { id: "funeral_e", name: "E（1人前）", price: 8140, image: "/images/meals/kokubetsu_e_1.jpg" },
-  { id: "funeral_f", name: "F（1人前）", price: 11440, image: "/images/meals/kokubetsu_f_1.jpg" },
+  {
+    id: "kodomo_b",
+    name: "子供膳B（1人前）",
+    price: 1760,
+    image: "/images/meals/shunsaitei/kodomo-b.jpg",
+    description:
+      "グラタンや鶏の唐揚げ、フルーツなどを車の器に入れた小さなお子様向けの御膳です。（旬菜亭）",
+  },
+  {
+    id: "kodomo_a",
+    name: "子供膳A（1人前）",
+    price: 2310,
+    image: "/images/meals/shunsaitei/kodomo-a.jpg",
+    description:
+      "エビフライやチキンライスなどお子様に人気のあるメニューを取り入れた御膳です。（旬菜亭）",
+  },
+  {
+    id: "asagiri",
+    name: "朝霧〈あさぎり〉（1人前）",
+    price: 4620,
+    image: "/images/meals/shunsaitei/asagiri.jpg",
+    description:
+      "お造りをメインに、こだわりの飛龍頭、米沢三元豚のローストポークなどを組み合わせた懐石膳です。（旬菜亭）",
+  },
+  {
+    id: "soraho",
+    name: "空穂〈そらほ〉（1人前・折詰弁当）",
+    price: 4950,
+    image: "/images/meals/shunsaitei/soraho.jpg",
+    description:
+      "厳選食材を使用した小鉢や天ぷらと、季節の炊き込みご飯を盛り込んだ彩り豊かな折詰弁当です。（旬菜亭）",
+  },
+  {
+    id: "hanagasumi",
+    name: "花霞〈はながすみ〉（1人前）",
+    price: 5830,
+    image: "/images/meals/shunsaitei/hanagasumi.jpg",
+    description:
+      "お造り・天ぷらなどの和の味と、米沢三元豚のローストポークなどの洋の味を楽しめる懐石膳です。（旬菜亭）",
+  },
+  {
+    id: "kokoyui",
+    name: "心結〈ここゆい〉（1人前・折詰弁当）",
+    price: 6050,
+    image: "/images/meals/shunsaitei/kokoyui.jpg",
+    description:
+      "「まい泉」自慢の揚げ物をメインに、すき焼きや小鉢、ちらし寿司などを盛り込んだ2段の折詰弁当です。（旬菜亭）",
+  },
+  {
+    id: "soukai",
+    name: "蒼海〈そうかい〉（1人前）",
+    price: 6380,
+    image: "/images/meals/shunsaitei/soukai.jpg",
+    description:
+      "こだわりのシャリを使用した握り寿司をメインに、料理長特製飛龍頭やデザートなど充実した懐石膳です。（旬菜亭）",
+  },
+  {
+    id: "kuon",
+    name: "久遠〈くおん〉（1人前・温かい懐石）",
+    price: 6930,
+    image: "/images/meals/shunsaitei/kuon.jpg",
+    description:
+      "蒸し寿司やすき焼き、湯葉シュウマイなどが温かくお召し上がりいただける懐石膳です。（旬菜亭）",
+  },
+  {
+    id: "otoiro",
+    name: "音彩〈おといろ〉（1人前・折詰弁当）",
+    price: 7260,
+    image: "/images/meals/shunsaitei/otoiro.jpg",
+    description:
+      "国産牛のローストビーフを乗せたご飯をメインに、お魚からお肉まで味わえる豪華な2段の折詰弁当です。（旬菜亭）",
+  },
+  {
+    id: "kazasumi",
+    name: "風澄〈かざすみ〉（1人前）",
+    price: 7700,
+    image: "/images/meals/shunsaitei/kazasumi.jpg",
+    description:
+      "国産牛のローストビーフやお造りに加え、鯛の胡麻茶漬けと温かな蒸し物、デザートがセットの懐石膳です。（旬菜亭）",
+  },
+  {
+    id: "hoshikage",
+    name: "星影〈ほしかげ〉（1人前・温かい懐石）",
+    price: 7700,
+    image: "/images/meals/shunsaitei/hoshikage.jpg",
+    description:
+      "ステーキや海鮮蒸しなどのメイン料理が温かくお召し上がりいただける自慢の懐石膳です。（旬菜亭）",
+  },
+  {
+    id: "yoiduki",
+    name: "宵月〈よいづき〉（1人前）",
+    price: 8800,
+    image: "/images/meals/shunsaitei/yoiduki.jpg",
+    description:
+      "極上握り寿司をメインに、国産牛のローストビーフや厳選食材の逸品を組み合わせた寿司懐石膳です。（旬菜亭）",
+  },
+  {
+    id: "mizukagami",
+    name: "水鏡〈みずかがみ〉（1人前）",
+    price: 12100,
+    image: "/images/meals/shunsaitei/mizukagami.jpg",
+    description:
+      "前菜盛り合わせ、国産牛のローストビーフ、ウニの茶碗蒸し、鰻のひつまぶしまで堪能できるコース料理です。（旬菜亭）",
+  },
 ];
 
 export const singleFoodOptions: SingleFoodOption[] = [
   {
-    id: "sushi_3nin",
-    name: "寿司（3人前）",
-    price: 12705,
+    id: "sushi_gokujo_3nin",
+    name: "極上握り寿司〈3人盛〉",
+    price: 15400,
     servings: 3,
     includeInServingStaffCalculation: true,
     unitLabel: "台",
-    image: "/images/food/sushi_3nin.jpg",
-    description: "3人前の単品料理です。配膳人計算の人数に含めます。",
+    image: "/images/food/shunsaitei/sushi-gokujo.jpg",
+    description: "旬菜亭の一品料理（3人盛）です。配膳人計算の人数に含めます。",
   },
   {
-    id: "hors_doeuvre_3nin",
-    name: "オードブル（3人前）",
-    price: 9372,
+    id: "sushi_tokujo_3nin",
+    name: "特上握り寿司〈3人盛〉",
+    price: 12650,
+    servings: 3,
+    includeInServingStaffCalculation: true,
+    unitLabel: "台",
+    image: "/images/food/shunsaitei/sushi-tokujo.jpg",
+    description: "旬菜亭の一品料理（3人盛）です。配膳人計算の人数に含めます。",
+  },
+  {
+    id: "sushi_jo_3nin",
+    name: "上握り寿司〈3人盛〉",
+    price: 9790,
+    servings: 3,
+    includeInServingStaffCalculation: true,
+    unitLabel: "台",
+    image: "/images/food/shunsaitei/sushi-jo.jpg",
+    description: "旬菜亭の一品料理（3人盛）です。配膳人計算の人数に含めます。",
+  },
+  {
+    id: "sushi_nigiri_3nin",
+    name: "握り寿司〈3人盛〉",
+    price: 7260,
+    servings: 3,
+    includeInServingStaffCalculation: true,
+    unitLabel: "台",
+    image: "/images/food/shunsaitei/sushi-nigiri.jpg",
+    description: "旬菜亭の一品料理（3人盛）です。配膳人計算の人数に含めます。",
+  },
+  {
+    id: "sushi_maki_3nin",
+    name: "巻き寿司〈3人盛〉",
+    price: 6050,
+    servings: 3,
+    includeInServingStaffCalculation: true,
+    unitLabel: "台",
+    image: "/images/food/shunsaitei/sushi-maki.jpg",
+    description: "旬菜亭の一品料理（3人盛）です。配膳人計算の人数に含めます。",
+  },
+  {
+    id: "tempura_yasai_3nin",
+    name: "野菜天ぷら〈3人盛〉",
+    price: 5280,
     servings: 3,
     includeInServingStaffCalculation: false,
     unitLabel: "台",
-    image: "/images/food/hors_doeuvre_3nin.jpg",
-    description: "3人前の単品料理です。金額に反映し、配膳人計算には含めません。",
+    image: "/images/food/shunsaitei/tempura-yasai.jpg",
+    description: "旬菜亭の一品料理です。金額に反映し、配膳人計算には含めません。",
+  },
+  {
+    id: "karaage_potato",
+    name: "唐揚げポテト",
+    price: 5280,
+    servings: 3,
+    includeInServingStaffCalculation: false,
+    unitLabel: "台",
+    image: "/images/food/shunsaitei/karaage-potato.jpg",
+    description: "旬菜亭の一品料理です。金額に反映し、配膳人計算には含めません。",
+  },
+  {
+    id: "mix_sand",
+    name: "ミックスサンド",
+    price: 4400,
+    servings: 3,
+    includeInServingStaffCalculation: false,
+    unitLabel: "皿",
+    image: "/images/food/shunsaitei/mix-sand.jpg",
+    description: "旬菜亭の一品料理です。カラシは入っておりません。",
+  },
+  {
+    id: "sushi_doushi",
+    name: "御導師様握り寿司",
+    price: 4400,
+    servings: 1,
+    includeInServingStaffCalculation: false,
+    unitLabel: "折",
+    image: "/images/food/shunsaitei/sushi-doushi.jpg",
+    description: "御導師様用の握り寿司です。配膳人計算には含めません。",
+  },
+  {
+    id: "tsukemono",
+    name: "漬物",
+    price: 2750,
+    servings: 0,
+    includeInServingStaffCalculation: false,
+    unitLabel: "皿",
+    image: "/images/food/shunsaitei/tsukemono.jpg",
+    description: "旬菜亭の一品料理です。",
+  },
+  {
+    id: "hirekatsu_sand",
+    name: "ヒレかつサンド（6切）",
+    price: 1100,
+    servings: 1,
+    includeInServingStaffCalculation: false,
+    unitLabel: "折",
+    image: "/images/food/shunsaitei/hirekatsu-sand.jpg",
+    description:
+      "とんかつ まい泉。ご注文は施行日の2日前12時までにお願いします。",
+  },
+  {
+    id: "onigiri_2ko",
+    name: "おにぎり2個（鮭・昆布）",
+    price: 660,
+    servings: 1,
+    includeInServingStaffCalculation: false,
+    unitLabel: "折",
+    image: "/images/food/shunsaitei/onigiri.jpg",
+    description: "旬菜亭の一品料理です。",
+  },
+  {
+    id: "suimono",
+    name: "吸物",
+    price: 330,
+    servings: 0,
+    includeInServingStaffCalculation: false,
+    unitLabel: "椀",
+    image: "/images/food/shunsaitei/suimono.jpg",
+    description: "旬菜亭の一品料理です。",
   },
 ];
 
-export const returnGifts: ReturnGiftOption[] = [
-  {
-    id: "gift-a",
-    name: "返礼品A",
-    price: 2376,
-    image: "/images/options/gift.jpg",
-    defaultModelNumber: "A-001",
-  },
-  {
-    id: "gift-b",
-    name: "返礼品B",
-    price: 2916,
-    image: "/images/options/gift.jpg",
-    defaultModelNumber: "B-001",
-  },
-  {
-    id: "gift-c",
-    name: "返礼品C",
-    price: 3024,
-    image: "/images/options/gift.jpg",
-    defaultModelNumber: "C-001",
-  },
-  {
-    id: "gift-d",
-    name: "返礼品D",
-    price: 3456,
-    image: "/images/options/gift.jpg",
-    defaultModelNumber: "D-001",
-  },
-  {
-    id: "gift-e",
-    name: "返礼品E",
-    price: 3672,
-    image: "/images/options/gift.jpg",
-    defaultModelNumber: "E-001",
-  },
-  {
-    id: "gift-f",
-    name: "返礼品F",
-    price: 4536,
-    image: "/images/options/gift.jpg",
-    defaultModelNumber: "F-001",
-  },
-  {
-    id: "gift-g",
-    name: "返礼品G",
-    price: 5616,
-    image: "/images/options/gift.jpg",
-    defaultModelNumber: "G-001",
-  },
+type InabaenGiftEntry = {
+  code: string;
+  name: string;
+  price: number;
+  file: string;
+};
+
+// いなば園「茶美一撰」カタログ（税込・軽減税率8%）
+const inabaenGiftCatalog: InabaenGiftEntry[] = [
+  { code: "F-BB", name: "静岡深蒸し銘茶・一番摘みティーバッグ煎茶詰合せ", price: 2376, file: "f-bb" },
+  { code: "CRS-BC", name: "美味彩撰 バラエティギフト", price: 2484, file: "crs-bc" },
+  { code: "KG-B", name: "カップごはんバラエティギフト", price: 2484, file: "kg-b" },
+  { code: "AM-BD", name: "六本木アマンド フルーツケーキ＆抹茶ケーキ・プレミアムティーバッグ煎茶セット", price: 2592, file: "am-bd" },
+  { code: "AMF-B", name: "六本木アマンド スイーツギフト", price: 2592, file: "amf-b" },
+  { code: "UND-BF", name: "紀州南高梅・有明海産焼海苔・だしの素詰合せ", price: 2808, file: "und-bf" },
+  { code: "AML-BE", name: "六本木アマンド リーフパイギフト", price: 3024, file: "aml-be" },
+  { code: "LC-BH", name: "プレミアムティーバッグ煎茶・ドリップコーヒー・ラングドシャセット", price: 3024, file: "lc-bh" },
+  { code: "KG-BH", name: "カップごはんバラエティギフト", price: 3024, file: "kg-bh" },
+  { code: "F-BH", name: "静岡深蒸し銘茶詰合せ", price: 3024, file: "f-bh" },
+  { code: "YC-BH", name: "一番摘みティーバッグ煎茶・米屋大納言羊羹詰合せ", price: 3024, file: "yc-bh" },
+  { code: "SN-BH", name: "一番摘みティーバッグ煎茶・焼鮭明太ほぐし・海苔佃煮詰合せ", price: 3024, file: "sn-bh" },
+  { code: "AMF-BG", name: "六本木アマンド スイーツギフト", price: 3132, file: "amf-bg" },
+  { code: "CRS-BE", name: "美味彩撰 バラエティ調味料セット", price: 3240, file: "crs-be" },
+  { code: "USD-C", name: "紀州南高梅・焼鮭手ほぐし・だしの素詰合せ", price: 3240, file: "usd-c" },
+  { code: "AML-CB", name: "六本木アマンド リーフパイギフト", price: 3564, file: "aml-cb" },
+  { code: "VH-CC", name: "静岡深蒸し銘茶", price: 3564, file: "vh-cc" },
+  { code: "F-CC", name: "静岡深蒸し銘茶詰合せ", price: 3564, file: "f-cc" },
+  { code: "RTF-CC", name: "南魚沼産こしひかりギフト", price: 3564, file: "rtf-cc" },
+  { code: "KG-C", name: "カップごはんバラエティギフト", price: 3564, file: "kg-c" },
+  { code: "Y-CC", name: "静岡深蒸し銘茶・米屋大納言羊羹詰合せ", price: 3564, file: "y-cc" },
+  { code: "GT-CC", name: "一番摘みティーバッグ煎茶・利久牛たん・焼鮭明太ほぐし詰合せ", price: 3564, file: "gt-cc" },
+  { code: "UN-CC", name: "静岡深蒸し銘茶・紀州南高梅・有明海産味付海苔詰合せ", price: 3564, file: "un-cc" },
+  { code: "NY-CC", name: "ヤマサ醤油・有明海産焼海苔・焼鮭手ほぐし詰合せ", price: 3564, file: "ny-cc" },
+  { code: "US-CC", name: "静岡深蒸し銘茶・焼鮭手ほぐし・紀州南高梅詰合せ", price: 3564, file: "us-cc" },
+  { code: "SN-CC", name: "静岡深蒸し銘茶・有明海産焼海苔・焼鮭手ほぐし詰合せ", price: 3564, file: "sn-cc" },
+  { code: "AM-CD", name: "六本木アマンド フルーツケーキ＆抹茶ケーキ・プレミアムティーバッグ煎茶・ドリップコーヒーセット", price: 3672, file: "am-cd" },
+  { code: "AMF-CB", name: "六本木アマンド スイーツギフト", price: 3780, file: "amf-cb" },
+  { code: "CRS-CF", name: "美味彩撰 バラエティ調味料セット", price: 3888, file: "crs-cf" },
+  { code: "V-CH", name: "静岡深蒸し銘茶詰合せ", price: 4104, file: "v-ch" },
+  { code: "Y-CH", name: "静岡深蒸し銘茶・米屋栗羊羹詰合せ", price: 4104, file: "y-ch" },
+  { code: "GT-CH", name: "一番摘みティーバッグ煎茶・利久牛たん詰合せ", price: 4104, file: "gt-ch" },
+  { code: "KC-CH", name: "バラエティギフトセット", price: 4104, file: "kc-ch" },
+  { code: "CR-D", name: "美味彩撰 バラエティ調味料セット", price: 4320, file: "cr-d" },
+  { code: "RTF-D", name: "南魚沼産こしひかりギフト", price: 4320, file: "rtf-d" },
+  { code: "AM-DC", name: "六本木アマンド フルーツケーキ＆抹茶ケーキ・プレミアムティーバッグ煎茶・ドリップコーヒーセット", price: 4644, file: "am-dc" },
+  { code: "LC-DC", name: "プレミアムティーバッグ煎茶・ドリップコーヒー・ラングドシャセット", price: 4644, file: "lc-dc" },
+  { code: "UN-DC", name: "静岡深蒸し銘茶・有明海産焼海苔・紀州南高梅・海苔佃煮詰合せ", price: 4644, file: "un-dc" },
+  { code: "GT-DH", name: "バラエティギフトセット（利久牛たん）", price: 5184, file: "gt-dh" },
+  { code: "RS-E", name: "美味彩撰 バラエティ調味料セット", price: 5400, file: "rs-e" },
+  { code: "AM-EB", name: "六本木アマンド スイーツギフト", price: 5724, file: "am-eb" },
+  { code: "V-EC", name: "静岡深蒸し銘茶詰合せ", price: 5724, file: "v-ec" },
+  { code: "GTS-EC", name: "利久牛たんバラエティギフトセット", price: 5724, file: "gts-ec" },
+  { code: "VK-G", name: "静岡深蒸し銘茶詰合せ", price: 7560, file: "vk-g" },
 ];
+
+export const returnGifts: ReturnGiftOption[] = inabaenGiftCatalog.map(
+  (item) => ({
+    id: `gift-${item.file}`,
+    name: `${item.name}（${item.code}）`,
+    price: item.price,
+    image: `/images/gifts/inabaen/${item.file}.jpg`,
+    defaultModelNumber: item.code,
+  }),
+);
 
 export const defaultReturnGiftInputs: ReturnGiftInput[] = returnGifts.map(
   (gift) => ({
