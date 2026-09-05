@@ -495,6 +495,13 @@ export const altarUpgrades: AltarUpgrade[] = [
         description: "Aランク デザイン2",
         priceAdjustment: 0,
       },
+      {
+        id: "a_3",
+        name: "A デザイン3",
+        image: "/images/altars/a-3.jpg",
+        description: "Aランク デザイン3",
+        priceAdjustment: 0,
+      },
     ],
   },
   {
