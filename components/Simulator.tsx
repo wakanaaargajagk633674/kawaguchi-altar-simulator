@@ -88,7 +88,7 @@ export default function Simulator() {
   const [selectedRankId, setSelectedRankId] = useState(
     defaultRankForPlan(defaultPlan).id,
   );
-  const [hasMembership, setHasMembership] = useState(true);
+  const [hasMembership, setHasMembership] = useState(false);
   const [selectedCoffinId, setSelectedCoffinId] = useState(
     coffinOptions[0].id,
   );
