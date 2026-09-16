@@ -29,6 +29,7 @@ export type FuneralRank = {
   recommended?: boolean;
   preDayAvailable?: boolean;
   capacityLabel?: string;
+  note?: string;
 };
 
 export type PriceOption = {
@@ -238,14 +239,17 @@ const createPlanRank = (
   displayName: string,
   price: number,
   recommended = false,
-) =>
-  createRank(
-    id,
-    displayName,
-    price,
-    recommended,
-    planRankImages[planKey][id],
-  );
+  extra: Pick<FuneralRank, "capacityLabel" | "note"> = {},
+) => ({
+  ...createRank(id, displayName, price, recommended, planRankImages[planKey][id]),
+  ...extra,
+});
+
+// 家族葬系（一日葬・家族葬二日・夕暮れ家族葬）の基本ランク共通注記
+const familyBasicRankExtra = {
+  capacityLabel: "〜10名",
+  note: "10名を超える場合は運営管理費55,000円（税込）が別途かかります。",
+} as const;
 
 export const taxModeLabels: Record<TaxMode, string> = {
   tax_included: "税込",
@@ -427,7 +431,14 @@ export const funeralPlans: FuneralPlan[] = [
       createPlanRank("memorial_family_one_day", "tsubaki", "椿", 1080000),
       createPlanRank("memorial_family_one_day", "fuji", "藤", 930000),
       createPlanRank("memorial_family_one_day", "kiku", "菊", 790000),
-      createPlanRank("memorial_family_one_day", "basic", "基本", 496000, true),
+      createPlanRank(
+        "memorial_family_one_day",
+        "basic",
+        "基本",
+        496000,
+        true,
+        familyBasicRankExtra,
+      ),
     ],
   },
   {
@@ -443,7 +454,14 @@ export const funeralPlans: FuneralPlan[] = [
       createPlanRank("memorial_family_two_day", "tsubaki", "椿", 1220000),
       createPlanRank("memorial_family_two_day", "fuji", "藤", 1070000),
       createPlanRank("memorial_family_two_day", "kiku", "菊", 880000),
-      createPlanRank("memorial_family_two_day", "basic", "基本", 628000, true),
+      createPlanRank(
+        "memorial_family_two_day",
+        "basic",
+        "基本",
+        628000,
+        true,
+        familyBasicRankExtra,
+      ),
     ],
   },
   {
@@ -459,7 +477,14 @@ export const funeralPlans: FuneralPlan[] = [
       createPlanRank("memorial_evening_family", "tsubaki", "椿", 1135000),
       createPlanRank("memorial_evening_family", "fuji", "藤", 985000),
       createPlanRank("memorial_evening_family", "kiku", "菊", 845000),
-      createPlanRank("memorial_evening_family", "basic", "基本", 551000, true),
+      createPlanRank(
+        "memorial_evening_family",
+        "basic",
+        "基本",
+        551000,
+        true,
+        familyBasicRankExtra,
+      ),
     ],
   },
   {

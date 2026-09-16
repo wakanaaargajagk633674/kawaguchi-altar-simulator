@@ -389,6 +389,11 @@ export default function ProposalDocument({
                 {estimate.planName} {estimate.rankName}
               </span>
             </p>
+            {estimate.rankNote ? (
+              <p className="text-xs" style={{ color: pdfColors.subtle }}>
+                ※{estimate.rankNote}
+              </p>
+            ) : null}
           </div>
         </header>
 

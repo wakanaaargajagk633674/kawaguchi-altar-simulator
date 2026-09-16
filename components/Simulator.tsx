@@ -322,6 +322,7 @@ export default function Simulator() {
     return {
       planName: selectedPlan.name,
       rankName: selectedRank.displayName,
+      rankNote: selectedRank.note,
       planAmount: selectedRank.price,
       taxLabel: taxModeLabels[selectedPlan.taxMode],
       memberDiscount,

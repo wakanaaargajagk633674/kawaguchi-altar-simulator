@@ -41,6 +41,7 @@ export type EstimateReturnGiftLine = {
 export type EstimateSummary = {
   planName: string;
   rankName: string;
+  rankNote?: string;
   planAmount: number;
   taxLabel: string;
   memberDiscount: number;
@@ -104,10 +105,12 @@ function EstimateLine({
   label,
   detail,
   amount,
+  note,
 }: {
   label: string;
   detail: string;
   amount?: number;
+  note?: string;
 }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-stone-100 py-3 last:border-b-0">
@@ -116,6 +119,9 @@ function EstimateLine({
         <dd className="mt-1 text-base font-medium leading-6 text-slate-900">
           {detail}
         </dd>
+        {note ? (
+          <dd className="mt-1 text-xs leading-5 text-red-700">※{note}</dd>
+        ) : null}
       </div>
       {typeof amount === "number" ? (
         <dd className="self-center text-right text-base font-semibold text-slate-950">
@@ -157,6 +163,7 @@ export default function EstimatePanel({ estimate }: EstimatePanelProps) {
             label="プラン料金"
             detail={`${estimate.planName} ${estimate.rankName}（${estimate.taxLabel}）`}
             amount={estimate.planAmount}
+            note={estimate.rankNote}
           />
 
           {estimate.memberDiscount > 0 ? (

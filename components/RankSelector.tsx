@@ -48,6 +48,11 @@ export default function RankSelector({
               <span className="flex items-center justify-between gap-2">
                 <span className="text-lg font-semibold text-slate-950">
                   {rank.displayName}
+                  {rank.capacityLabel ? (
+                    <span className="ml-2 text-sm font-medium text-slate-600">
+                      {rank.capacityLabel}
+                    </span>
+                  ) : null}
                 </span>
                 {rank.recommended ? (
                   <span className="rounded-full bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white">
@@ -61,6 +66,11 @@ export default function RankSelector({
               <span className="mt-2 block text-sm leading-6 text-slate-600">
                 {rank.description}
               </span>
+              {rank.note ? (
+                <span className="mt-2 block text-xs leading-5 text-red-700">
+                  ※{rank.note}
+                </span>
+              ) : null}
             </button>
           );
         })}
