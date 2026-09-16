@@ -4,7 +4,14 @@ export type FuneralPlan = {
   id: string;
   name: string;
   displayName: string;
-  category: "direct" | "flower_farewell" | "one_day" | "family_two_day" | "citizen";
+  category:
+    | "direct"
+    | "flower_farewell"
+    | "one_day"
+    | "family_two_day"
+    | "evening_family"
+    | "general"
+    | "citizen";
   description: string;
   memberDiscount: number;
   taxMode: TaxMode;
@@ -138,6 +145,8 @@ type PlanImageKey =
   | "memorial_flower_farewell"
   | "memorial_family_one_day"
   | "memorial_family_two_day"
+  | "memorial_evening_family"
+  | "memorial_general"
   | "citizen_funeral";
 
 type RankImageKey = "basic" | "kiku" | "fuji" | "tsubaki" | "ran";
@@ -176,6 +185,21 @@ export const planRankImages: Record<
     ran: "/images/plans/memorial_family_one_day/ran.jpg",
   },
   memorial_family_two_day: {
+    basic: "/images/plans/memorial_family_two_day/basic.jpg",
+    kiku: "/images/plans/memorial_family_two_day/kiku.jpg",
+    fuji: "/images/plans/memorial_family_two_day/fuji.jpg",
+    tsubaki: "/images/plans/memorial_family_two_day/tsubaki.jpg",
+    ran: "/images/plans/memorial_family_two_day/ran.jpg",
+  },
+  // 夕暮れ家族葬・一般葬は祭壇構成が家族葬二日と同じため画像を共用
+  memorial_evening_family: {
+    basic: "/images/plans/memorial_family_two_day/basic.jpg",
+    kiku: "/images/plans/memorial_family_two_day/kiku.jpg",
+    fuji: "/images/plans/memorial_family_two_day/fuji.jpg",
+    tsubaki: "/images/plans/memorial_family_two_day/tsubaki.jpg",
+    ran: "/images/plans/memorial_family_two_day/ran.jpg",
+  },
+  memorial_general: {
     basic: "/images/plans/memorial_family_two_day/basic.jpg",
     kiku: "/images/plans/memorial_family_two_day/kiku.jpg",
     fuji: "/images/plans/memorial_family_two_day/fuji.jpg",
@@ -420,6 +444,38 @@ export const funeralPlans: FuneralPlan[] = [
       createPlanRank("memorial_family_two_day", "fuji", "藤", 1070000),
       createPlanRank("memorial_family_two_day", "kiku", "菊", 880000),
       createPlanRank("memorial_family_two_day", "basic", "基本", 628000, true),
+    ],
+  },
+  {
+    id: "memorial_evening_family",
+    name: "夕暮れ家族葬",
+    displayName: "夕暮れ家族葬",
+    category: "evening_family",
+    description: "通夜・告別式を家族だけで行う、夕暮れの時間帯を活かした家族葬です。",
+    memberDiscount: 100000,
+    taxMode: "tax_included",
+    ranks: [
+      createPlanRank("memorial_evening_family", "ran", "蘭", 1305000),
+      createPlanRank("memorial_evening_family", "tsubaki", "椿", 1135000),
+      createPlanRank("memorial_evening_family", "fuji", "藤", 985000),
+      createPlanRank("memorial_evening_family", "kiku", "菊", 845000),
+      createPlanRank("memorial_evening_family", "basic", "基本", 551000, true),
+    ],
+  },
+  {
+    id: "memorial_general",
+    name: "メモリアル一般葬",
+    displayName: "一般葬",
+    category: "general",
+    description: "通夜・告別式を行い、ご親族やご縁のあった方々をお迎えする一般葬です。",
+    memberDiscount: 100000,
+    taxMode: "tax_included",
+    ranks: [
+      createPlanRank("memorial_general", "ran", "蘭", 1510000),
+      createPlanRank("memorial_general", "tsubaki", "椿", 1330000),
+      createPlanRank("memorial_general", "fuji", "藤", 1180000),
+      createPlanRank("memorial_general", "kiku", "菊", 990000),
+      createPlanRank("memorial_general", "basic", "基本", 738000, true),
     ],
   },
   {
