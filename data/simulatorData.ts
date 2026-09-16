@@ -852,7 +852,7 @@ export const funeralMealOptions: PriceOption[] = [
 ];
 
 // オリジナル通夜料理提案。税抜価格の商品なので price には税込換算（×1.1）を入れ、
-// priceTaxExcluded を表示に使う。通夜料理セットと同じく配膳人計算の人数に含める。
+// priceTaxExcluded を表示に使う。配膳人計算は寿司の人数のみで行い、オードブルは合算しない。
 export const originalWakeMealOptions: SingleFoodOption[] = [
   {
     id: "original_wake_sushi_3nin",
@@ -872,11 +872,11 @@ export const originalWakeMealOptions: SingleFoodOption[] = [
     price: 9900,
     priceTaxExcluded: 9000,
     servings: 3,
-    includeInServingStaffCalculation: true,
+    includeInServingStaffCalculation: false,
     unitLabel: "台",
     image: "/images/meals/shunsaitei/o-doburu.jpg",
     description:
-      "川口典礼オリジナルの通夜オードブル（3人盛）です。配膳人計算の人数に含めます。",
+      "川口典礼オリジナルの通夜オードブル（3人盛）です。寿司と同じお客様にお出しするため、配膳人計算には含めません（寿司の人数で計算）。",
   },
 ];
 
