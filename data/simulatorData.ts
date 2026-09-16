@@ -874,9 +874,9 @@ export const originalWakeMealOptions: SingleFoodOption[] = [
     servings: 3,
     includeInServingStaffCalculation: true,
     unitLabel: "台",
-    image: "/images/meals/shunsaitei/set-tsumugi.jpg",
+    image: "/images/meals/shunsaitei/o-doburu.jpg",
     description:
-      "川口典礼オリジナルの通夜オードブル（3人盛）です。写真は紡〈つむぎ〉セットのオードブルです。配膳人計算の人数に含めます。",
+      "川口典礼オリジナルの通夜オードブル（3人盛）です。配膳人計算の人数に含めます。",
   },
 ];
 
