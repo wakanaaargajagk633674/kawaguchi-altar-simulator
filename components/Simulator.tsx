@@ -12,6 +12,7 @@ import RankSelector from "@/components/RankSelector";
 import {
   altarUpgrades,
   careOptions,
+  citizenVenueOptions,
   coffinOptions,
   contactInfo,
   defaultOtherItems,
@@ -22,6 +23,7 @@ import {
   funeralMealOptions,
   funeralPlans,
   noAltarUpgradePlanNames,
+  originalWakeMealOptions,
   returnGifts,
   restingCostConfig,
   serviceStaffConfig,
@@ -51,6 +53,13 @@ const defaultChildMealCounts = childMealOptions.reduce<Record<string, number>>(
   },
   {},
 );
+
+const defaultOriginalWakeMealCounts = originalWakeMealOptions.reduce<
+  Record<string, number>
+>((counts, option) => {
+  counts[option.id] = 0;
+  return counts;
+}, {});
 
 const defaultSingleFoodCounts = singleFoodOptions.reduce<Record<string, number>>(
   (counts, option) => {
@@ -110,6 +119,12 @@ export default function Simulator() {
   const [funeralMealPeople, setFuneralMealPeople] = useState(0);
   const [singleFoodCounts, setSingleFoodCounts] = useState<Record<string, number>>(
     defaultSingleFoodCounts,
+  );
+  const [originalWakeMealCounts, setOriginalWakeMealCounts] = useState<
+    Record<string, number>
+  >(defaultOriginalWakeMealCounts);
+  const [selectedCitizenVenueId, setSelectedCitizenVenueId] = useState(
+    citizenVenueOptions[0].id,
   );
   const [childMealCounts, setChildMealCounts] = useState<
     Record<string, number>
@@ -171,6 +186,34 @@ export default function Simulator() {
     const wakeMealPeople = effectiveWakeSets * wakeMealConfig.servingsPerSet;
     const wakeMealAmount = selectedWakeMeal.price * effectiveWakeSets;
 
+    // オリジナル通夜料理提案（税抜商品。price は税込換算済み）
+    const originalWakeMealLines = originalWakeMealOptions
+      .map((option) => {
+        const quantity = originalWakeMealCounts[option.id] ?? 0;
+
+        return {
+          id: option.id,
+          name: option.name,
+          quantity,
+          unitLabel: option.unitLabel,
+          servings: option.servings,
+          includeInServingStaffCalculation:
+            option.includeInServingStaffCalculation,
+          unitPrice: option.price,
+          unitPriceTaxExcluded: option.priceTaxExcluded,
+          amount: option.price * quantity,
+          image: option.image,
+        };
+      })
+      .filter((line) => line.quantity > 0 && line.amount > 0);
+    const originalWakeMealAmount = originalWakeMealLines.reduce(
+      (sum, line) => sum + line.amount,
+      0,
+    );
+    const originalWakeMealServingsForStaff = originalWakeMealLines
+      .filter((line) => line.includeInServingStaffCalculation)
+      .reduce((sum, line) => sum + line.servings * line.quantity, 0);
+
     const singleFoodLines = singleFoodOptions
       .map((option) => {
         const quantity = singleFoodCounts[option.id] ?? 0;
@@ -197,7 +240,9 @@ export default function Simulator() {
       .filter((line) => line.includeInServingStaffCalculation)
       .reduce((sum, line) => sum + line.servings * line.quantity, 0);
     const wakeMealServingsForStaff =
-      wakeMealPeople + singleFoodServingsForStaff;
+      wakeMealPeople +
+      originalWakeMealServingsForStaff +
+      singleFoodServingsForStaff;
     const wakeStaffCount = staffCountForPeople(wakeMealServingsForStaff);
     const wakeStaffAmount =
       wakeStaffCount * serviceStaffConfig.pricePerPerson;
@@ -244,6 +289,15 @@ export default function Simulator() {
     );
     const funeralStaffAmount =
       funeralStaffCount * serviceStaffConfig.pricePerPerson;
+
+    // 会場設備使用料金は市民葬を選んだ場合のみ加算する。
+    const selectedCitizenVenue =
+      selectedPlan.category === "citizen"
+        ? citizenVenueOptions.find(
+            (option) => option.id === selectedCitizenVenueId,
+          ) ?? citizenVenueOptions[0]
+        : citizenVenueOptions[0];
+    const citizenVenueAmount = selectedCitizenVenue.price;
 
     const restingAmount = restingDays * restingCostConfig.pricePerDay;
     const dryIceAmount = dryIceDays * dryIceCostConfig.pricePerDay;
@@ -307,6 +361,7 @@ export default function Simulator() {
       selectedAltarUpgrade.price +
       altarDesignAdjustment +
       wakeMealAmount +
+      originalWakeMealAmount +
       singleFoodAmount +
       funeralMealAmount +
       childMealAmount +
@@ -317,6 +372,7 @@ export default function Simulator() {
       dryIceAmount +
       careTotal +
       returnGiftAmount +
+      citizenVenueAmount +
       otherAmount;
 
     return {
@@ -326,6 +382,9 @@ export default function Simulator() {
       planAmount: selectedRank.price,
       taxLabel: taxModeLabels[selectedPlan.taxMode],
       memberDiscount,
+      citizenVenueName:
+        citizenVenueAmount > 0 ? selectedCitizenVenue.name : undefined,
+      citizenVenueAmount,
       coffinName: selectedCoffin.name,
       coffinAmount: selectedCoffin.price,
       urnName: selectedUrn.name,
@@ -343,6 +402,8 @@ export default function Simulator() {
       wakeMealPeople,
       wakeMealAmount,
       wakeMealServingsForStaff,
+      originalWakeMealLines,
+      originalWakeMealAmount,
       singleFoodLines,
       singleFoodAmount,
       wakeStaffCount,
@@ -384,10 +445,12 @@ export default function Simulator() {
     hasMembership,
     isAltarUpgradeAvailable,
     isUrnCoverSelected,
+    originalWakeMealCounts,
     otherItems,
     returnGiftInputs,
     restingDays,
     selectedAltarDesign,
+    selectedCitizenVenueId,
     selectedAltarUpgrade,
     selectedCareIds,
     selectedCoffin,
@@ -444,6 +507,23 @@ export default function Simulator() {
             : undefined,
       });
     }
+
+    estimate.originalWakeMealLines.forEach((line) => {
+      items.push({
+        id: line.id,
+        category: "オリジナル通夜料理提案",
+        name: line.name,
+        image: line.image,
+        quantityLabel: `${line.quantity}${line.unitLabel}（${
+          line.servings * line.quantity
+        }名分）`,
+        unitPrice: line.unitPrice,
+        subtotal: line.amount,
+        note: line.unitPriceTaxExcluded
+          ? `税抜${formatYen(line.unitPriceTaxExcluded)}／税込換算`
+          : undefined,
+      });
+    });
 
     estimate.singleFoodLines.forEach((line) => {
       items.push({
@@ -564,6 +644,7 @@ export default function Simulator() {
     estimate.funeralMealAmount,
     estimate.funeralMealPeople,
     estimate.funeralStaffCount,
+    estimate.originalWakeMealLines,
     estimate.otherLines,
     estimate.restingAmount,
     estimate.restingDays,
@@ -626,6 +707,21 @@ export default function Simulator() {
         subtotal: estimate.wakeMealAmount,
       });
     }
+
+    estimate.originalWakeMealLines.forEach((line) => {
+      rows.push({
+        id: line.id,
+        category: "オリジナル通夜料理提案",
+        name: line.unitPriceTaxExcluded
+          ? `${line.name}（税抜${formatYen(line.unitPriceTaxExcluded)}）`
+          : line.name,
+        quantity: `${line.quantity}${line.unitLabel}（${
+          line.servings * line.quantity
+        }名分）`,
+        unitPrice: line.unitPrice,
+        subtotal: line.amount,
+      });
+    });
 
     estimate.singleFoodLines.forEach((line) => {
       rows.push({
@@ -784,6 +880,17 @@ export default function Simulator() {
       });
     }
 
+    if (estimate.citizenVenueAmount > 0 && estimate.citizenVenueName) {
+      rows.push({
+        id: "citizen-venue",
+        category: "市民葬 会場設備",
+        name: estimate.citizenVenueName,
+        quantity: "1式",
+        unitPrice: estimate.citizenVenueAmount,
+        subtotal: estimate.citizenVenueAmount,
+      });
+    }
+
     estimate.otherLines.forEach((line) => {
       rows.push({
         id: line.id,
@@ -840,6 +947,16 @@ export default function Simulator() {
 
   const handleSingleFoodCountChange = (optionId: string, value: string) => {
     setSingleFoodCounts((currentCounts) => ({
+      ...currentCounts,
+      [optionId]: toNonNegativeInteger(value),
+    }));
+  };
+
+  const handleOriginalWakeMealCountChange = (
+    optionId: string,
+    value: string,
+  ) => {
+    setOriginalWakeMealCounts((currentCounts) => ({
       ...currentCounts,
       [optionId]: toNonNegativeInteger(value),
     }));
@@ -1056,9 +1173,35 @@ export default function Simulator() {
             </div>
 
             {selectedPlan.category === "citizen" ? (
-              <p className="mt-3 rounded-lg bg-stone-50 p-3 text-sm font-medium leading-6 text-slate-700">
-                市民葬は会員割引対象外です。
-              </p>
+              <div className="mt-3 rounded-lg bg-stone-50 p-3">
+                <p className="text-sm font-medium leading-6 text-slate-700">
+                  市民葬は会員割引対象外です。
+                </p>
+                <p className="mt-3 text-sm font-semibold text-slate-900">
+                  会場設備使用料金（音響設備一式）
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  {citizenVenueOptions.map((option) => {
+                    const isSelected = option.id === selectedCitizenVenueId;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => setSelectedCitizenVenueId(option.id)}
+                        className={cn(
+                          "min-h-12 rounded-md border px-3 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2",
+                          isSelected
+                            ? "border-amber-600 bg-amber-50 text-slate-950 shadow-sm"
+                            : "border-stone-200 bg-white text-slate-600 hover:bg-stone-100",
+                        )}
+                      >
+                        {option.price > 0 ? formatYen(option.price) : option.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             ) : hasMembership ? (
               <p className="mt-3 text-sm font-medium leading-6 text-slate-700">
                 選択中のプランは、概算合計から
@@ -1093,6 +1236,8 @@ export default function Simulator() {
             }
             childMealCounts={childMealCounts}
             onChildMealCountChange={handleChildMealCountChange}
+            originalWakeMealCounts={originalWakeMealCounts}
+            onOriginalWakeMealCountChange={handleOriginalWakeMealCountChange}
             singleFoodCounts={singleFoodCounts}
             onSingleFoodCountChange={handleSingleFoodCountChange}
             returnGiftInputs={returnGiftInputs}

@@ -333,6 +333,7 @@ export default function ProposalDocument({
   const mealStaffCount = estimate.wakeStaffCount + estimate.funeralStaffCount;
   const hasMeal =
     estimate.wakeMealAmount > 0 ||
+    estimate.originalWakeMealAmount > 0 ||
     estimate.singleFoodAmount > 0 ||
     estimate.funeralMealAmount > 0;
 

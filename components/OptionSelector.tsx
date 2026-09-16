@@ -12,6 +12,7 @@ import {
   restingCostConfig,
   serviceStaffConfig,
   childMealOptions,
+  originalWakeMealOptions,
   singleFoodOptions,
   type AltarUpgrade,
   type OtherItemInput,
@@ -45,6 +46,8 @@ type OptionSelectorProps = {
   onFuneralMealChange: (optionId: string) => void;
   onFuneralMealPeopleChange: (people: string) => void;
   childMealCounts: Record<string, number>;
+  originalWakeMealCounts: Record<string, number>;
+  onOriginalWakeMealCountChange: (optionId: string, value: string) => void;
   onChildMealCountChange: (optionId: string, quantity: string) => void;
   singleFoodCounts: Record<string, number>;
   onSingleFoodCountChange: (optionId: string, quantity: string) => void;
@@ -508,6 +511,8 @@ export default function OptionSelector({
   onFuneralMealPeopleChange,
   childMealCounts,
   onChildMealCountChange,
+  originalWakeMealCounts,
+  onOriginalWakeMealCountChange,
   singleFoodCounts,
   onSingleFoodCountChange,
   returnGiftInputs,
@@ -710,6 +715,37 @@ export default function OptionSelector({
                 </span>
               </div>
             ) : null}
+          </div>
+
+          <div>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-base font-semibold text-slate-900">
+                オリジナル通夜料理提案
+              </h3>
+              <p className="text-sm font-medium text-slate-600">
+                3人盛・表示は税抜（見積は税込換算）
+              </p>
+            </div>
+            <div className="grid gap-2 2xl:grid-cols-2">
+              {originalWakeMealOptions.map((option) => (
+                <QuantityRow
+                  key={option.id}
+                  image={option.image}
+                  name={option.name}
+                  priceLabel={
+                    option.priceTaxExcluded
+                      ? `税抜${formatYen(option.priceTaxExcluded)}（税込${formatYen(option.price)}） / ${option.unitLabel}`
+                      : `${formatYen(option.price)} / ${option.unitLabel}`
+                  }
+                  quantity={originalWakeMealCounts[option.id] ?? 0}
+                  unitLabel={option.unitLabel}
+                  inputId={`original-wake-meal-${option.id}`}
+                  onQuantityChange={(value) =>
+                    onOriginalWakeMealCountChange(option.id, value)
+                  }
+                />
+              ))}
+            </div>
           </div>
 
           <div>

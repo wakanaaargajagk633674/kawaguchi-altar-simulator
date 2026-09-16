@@ -16,6 +16,8 @@ export type EstimateSingleFoodLine = {
   servings: number;
   includeInServingStaffCalculation: boolean;
   unitPrice: number;
+  /** 税抜表記の商品の税抜単価（unitPrice は税込換算）。 */
+  unitPriceTaxExcluded?: number;
   amount: number;
   image?: string;
 };
@@ -45,6 +47,8 @@ export type EstimateSummary = {
   planAmount: number;
   taxLabel: string;
   memberDiscount: number;
+  citizenVenueName?: string;
+  citizenVenueAmount: number;
   coffinName: string;
   coffinAmount: number;
   urnName: string;
@@ -61,6 +65,8 @@ export type EstimateSummary = {
   wakeMealPeople: number;
   wakeMealAmount: number;
   wakeMealServingsForStaff: number;
+  originalWakeMealLines: EstimateSingleFoodLine[];
+  originalWakeMealAmount: number;
   singleFoodLines: EstimateSingleFoodLine[];
   singleFoodAmount: number;
   wakeStaffCount: number;
@@ -188,6 +194,19 @@ export default function EstimatePanel({ estimate }: EstimatePanelProps) {
             />
           ) : null}
 
+          {estimate.originalWakeMealLines.map((line) => (
+            <EstimateLine
+              key={line.id}
+              label="オリジナル通夜料理提案"
+              detail={`${line.name} ${
+                line.unitPriceTaxExcluded
+                  ? `税抜${formatYen(line.unitPriceTaxExcluded)}（税込${formatYen(line.unitPrice)}）`
+                  : formatYen(line.unitPrice)
+              } × ${line.quantity}${line.unitLabel}`}
+              amount={line.amount}
+            />
+          ))}
+
           {estimate.singleFoodLines.map((line) => (
             <EstimateLine
               key={line.id}
@@ -310,6 +329,14 @@ export default function EstimatePanel({ estimate }: EstimatePanelProps) {
               label="返礼品合計"
               detail={`${estimate.returnGiftLines.length}種類`}
               amount={estimate.returnGiftAmount}
+            />
+          ) : null}
+
+          {estimate.citizenVenueAmount > 0 && estimate.citizenVenueName ? (
+            <EstimateLine
+              label="市民葬 会場設備"
+              detail={estimate.citizenVenueName}
+              amount={estimate.citizenVenueAmount}
             />
           ) : null}
 

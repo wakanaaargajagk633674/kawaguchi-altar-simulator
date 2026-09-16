@@ -44,6 +44,8 @@ export type SingleFoodOption = PriceOption & {
   servings: number;
   includeInServingStaffCalculation: boolean;
   unitLabel: string;
+  /** 税抜表記の商品。price は税込換算後の金額を入れ、表示用に税抜金額を持つ。 */
+  priceTaxExcluded?: number;
 };
 
 export type FixedFeeOption = {
@@ -849,6 +851,35 @@ export const funeralMealOptions: PriceOption[] = [
   },
 ];
 
+// オリジナル通夜料理提案。税抜価格の商品なので price には税込換算（×1.1）を入れ、
+// priceTaxExcluded を表示に使う。通夜料理セットと同じく配膳人計算の人数に含める。
+export const originalWakeMealOptions: SingleFoodOption[] = [
+  {
+    id: "original_wake_sushi_3nin",
+    name: "通夜料理寿司〈3人盛〉",
+    price: 13200,
+    priceTaxExcluded: 12000,
+    servings: 3,
+    includeInServingStaffCalculation: true,
+    unitLabel: "台",
+    image: "/images/food/shunsaitei/sushi-jo.jpg",
+    description:
+      "川口典礼オリジナルの通夜料理寿司（3人盛）です。写真は旬菜亭の上寿司です。配膳人計算の人数に含めます。",
+  },
+  {
+    id: "original_wake_hors_doeuvre_3nin",
+    name: "通夜オードブル〈3人盛〉",
+    price: 9900,
+    priceTaxExcluded: 9000,
+    servings: 3,
+    includeInServingStaffCalculation: true,
+    unitLabel: "台",
+    image: "/images/meals/shunsaitei/set-tsumugi.jpg",
+    description:
+      "川口典礼オリジナルの通夜オードブル（3人盛）です。写真は紡〈つむぎ〉セットのオードブルです。配膳人計算の人数に含めます。",
+  },
+];
+
 // 会席膳（告別料理）と併用できるお子様向けの御膳。数量で入力する。
 export const childMealOptions: SingleFoodOption[] = [
   {
@@ -1084,6 +1115,21 @@ export const funeralMealHallFeeOption: FixedFeeOption = {
   price: 22000,
   description: "告別料理を選択した場合に自動で加算します。",
 };
+
+// 市民葬を選んだ場合のみ選択できる会場設備使用料金（音響設備一式を含む）。
+export const citizenVenueOptions: PriceOption[] = [
+  { id: "none", name: "加算しない", price: 0 },
+  {
+    id: "venue_50000",
+    name: "会場設備使用料金・音響設備一式（50,000円）",
+    price: 50000,
+  },
+  {
+    id: "venue_100000",
+    name: "会場設備使用料金・音響設備一式（100,000円）",
+    price: 100000,
+  },
+];
 
 export const defaultOtherItems: OtherItemInput[] = [
   { name: "", price: 0, quantity: 0 },
