@@ -1,10 +1,12 @@
 /* eslint-disable @next/next/no-img-element */
 import type { EstimateSummary } from "@/components/EstimatePanel";
+import ProposalIncludedPage from "@/components/ProposalIncludedPage";
 import {
   companyInfo,
   proposalNotices,
   serviceStaffConfig,
   variableCostAppendix,
+  type FuneralPlan,
 } from "@/data/simulatorData";
 import type { ProposalLineItem, ProposalTableRow } from "@/lib/proposalTypes";
 import { formatYen } from "@/lib/simulatorUtils";
@@ -17,6 +19,7 @@ type ProposalDocumentProps = {
   estimate: EstimateSummary;
   rows: ProposalTableRow[];
   optionItems: ProposalLineItem[];
+  planCategory: FuneralPlan["category"];
 };
 
 const pdfColors = {
@@ -325,6 +328,7 @@ export default function ProposalDocument({
   estimate,
   rows,
   optionItems,
+  planCategory,
 }: ProposalDocumentProps) {
   const detailPages = chunkRows(rows);
   const firstPageOptionItems = optionItems
@@ -442,9 +446,16 @@ export default function ProposalDocument({
           className="mt-auto rounded-lg p-3 text-xs leading-5"
           style={{ backgroundColor: pdfColors.panel, color: pdfColors.muted }}
         >
-          お見積もりの詳細内容は、次ページ以降でご確認いただけます。
+          次ページでプランの基本セット内容とお見積りの見方を、その後のページで詳細をご確認いただけます。
         </p>
       </section>
+
+      <ProposalIncludedPage
+        planCategory={planCategory}
+        customerName={customerName}
+        createdDate={createdDate}
+        estimate={estimate}
+      />
 
       {detailPages.map((pageRows, pageIndex) => {
         const isLastPage = pageIndex === detailPages.length - 1;

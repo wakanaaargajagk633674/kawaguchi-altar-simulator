@@ -5,6 +5,7 @@ import CustomerInfoForm from "@/components/CustomerInfoForm";
 import EstimatePanel, { type EstimateSummary } from "@/components/EstimatePanel";
 import FixedCTA from "@/components/FixedCTA";
 import OptionSelector from "@/components/OptionSelector";
+import PlanIncludedPanel from "@/components/PlanIncludedPanel";
 import PlanSelector from "@/components/PlanSelector";
 import ProposalDocument from "@/components/ProposalDocument";
 import PreviewStage from "@/components/PreviewStage";
@@ -1129,6 +1130,8 @@ export default function Simulator() {
             onSelect={setSelectedRankId}
           />
 
+          <PlanIncludedPanel plan={selectedPlan} />
+
           <section className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1291,6 +1294,7 @@ export default function Simulator() {
           estimate={estimate}
           rows={proposalRows}
           optionItems={selectedOptionItems}
+          planCategory={selectedPlan.category}
         />
       </div>
 
