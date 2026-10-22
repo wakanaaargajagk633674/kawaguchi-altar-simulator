@@ -13,7 +13,7 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py .
+COPY rembg_core.py app.py ./
 
 # 本番では REMBG_WORKER_TOKEN を環境変数で設定すること。
 EXPOSE 8000

@@ -18,8 +18,15 @@ RunPod Serverless は、ジョブごとに `handler(job)` を呼び出す。
 
 import base64
 import binascii
+import logging
+import os
 
 from rembg_core import remove_background_to_png_bytes
+
+logger = logging.getLogger("rembg-runpod")
+
+# 入力画像の上限（デコード後のバイト数）。既定 15MB。
+MAX_UPLOAD_BYTES = int(os.environ.get("REMBG_MAX_UPLOAD_BYTES") or 15 * 1024 * 1024)
 
 
 def handler(job):
@@ -32,6 +39,10 @@ def handler(job):
     # filename は任意（ログ等の用途）。処理には使わない。
     _filename = job_input.get("filename")
 
+    # base64 は約 4/3 倍になるため、デコード前に大まかに弾く。
+    if not isinstance(image_b64, str) or len(image_b64) > MAX_UPLOAD_BYTES * 4 // 3 + 4:
+        return {"ok": False, "message": "画像が大きすぎるか、形式が不正です。"}
+
     try:
         data = base64.b64decode(image_b64, validate=True)
     except (binascii.Error, ValueError):
@@ -39,8 +50,9 @@ def handler(job):
 
     try:
         png_bytes = remove_background_to_png_bytes(data)
-    except Exception as error:  # noqa: BLE001 - 呼び出し側へ簡潔なメッセージのみ返す
-        return {"ok": False, "message": f"背景除去に失敗しました: {error}"}
+    except Exception:  # noqa: BLE001 - 詳細はログのみ。呼び出し側へは汎用メッセージを返す
+        logger.exception("背景除去に失敗しました。")
+        return {"ok": False, "message": "背景除去に失敗しました。"}
 
     return {
         "ok": True,

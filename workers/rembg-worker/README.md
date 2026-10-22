@@ -24,7 +24,8 @@ AI遺影写真生成アプリ `/iei-photo` の背景切り抜きを担う、自�
 
 ### `POST /remove-background`
 - 入力: `multipart/form-data` の `file`（画像）
-- 認証: 任意。`REMBG_WORKER_TOKEN` を設定した場合は `Authorization: Bearer <token>` が必要
+- 認証: 必須。`Authorization: Bearer <REMBG_WORKER_TOKEN>` が必要（`REMBG_ALLOW_NO_AUTH=1` のローカル開発時のみ不要）
+- 上限: アップロードは 15MB まで（`REMBG_MAX_UPLOAD_BYTES` で変更可）。超過時は 413
 - 成功: `image/png`（透過PNG）を返す
 - 失敗: JSON `{ "ok": false, "message": "..." }`
 
@@ -38,9 +39,9 @@ AI遺影写真生成アプリ `/iei-photo` の背景切り抜きを担う、自�
   （以降はキャッシュされます。モデルキャッシュはコミットしません）。
 
 ## 環境変数
-- `REMBG_WORKER_TOKEN`（任意）: 設定すると Bearer トークン認証を有効化。
-  - 未設定ならローカル開発用として**認証なし**で動作します。
-  - **本番では必ず設定してください。**
+- `REMBG_WORKER_TOKEN`（必須）: Bearer トークン。**未設定だと起動時にエラー終了します。**
+- `REMBG_ALLOW_NO_AUTH=1`（ローカル開発専用）: トークン未設定でも認証なしで起動します。本番では絶対に設定しないでください。
+- `REMBG_MAX_UPLOAD_BYTES`（任意）: アップロード上限バイト数（既定 15MB）。
 
 ## ローカル起動（FastAPI モード）
 
@@ -50,8 +51,9 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate  /  macOS・Linux: source .venv/bin/activate
 pip install -r requirements.txt
 
-# 認証なし（ローカル開発）
-uvicorn app:app --host 0.0.0.0 --port 8000
+# 認証なし（ローカル開発のみ。明示的なオプトアウトが必要）
+# Windows(PowerShell): $env:REMBG_ALLOW_NO_AUTH="1"; uvicorn app:app --port 8000
+# macOS/Linux:        REMBG_ALLOW_NO_AUTH=1 uvicorn app:app --host 127.0.0.1 --port 8000
 
 # 認証あり（推奨）
 # Windows(PowerShell): $env:REMBG_WORKER_TOKEN="任意のトークン"; uvicorn app:app --port 8000
@@ -164,7 +166,7 @@ GitHub Container Registry（GHCR）へ push できます。
 | 変数 | 用途 |
 | --- | --- |
 | `REMBG_WORKER_URL` | 自前 FastAPI worker のURL（例 `http://127.0.0.1:8000`）。設定時はこちらを優先。 |
-| `REMBG_WORKER_TOKEN` | FastAPI worker の Bearer トークン（任意）。worker 側と一致させる。 |
+| `REMBG_WORKER_TOKEN` | FastAPI worker の Bearer トークン（必須）。worker 側と一致させる。 |
 | `RUNPOD_ENDPOINT_URL` | RunPod Serverless Endpoint URL（将来）。 |
 | `RUNPOD_API_KEY` | RunPod APIキー（将来）。サーバー側のみ・クライアント非露出。 |
 

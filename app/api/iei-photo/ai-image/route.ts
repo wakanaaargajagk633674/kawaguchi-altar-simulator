@@ -25,6 +25,7 @@
  * - 人物のAI生成は「高度AI補正 / AI肖像生成 / AIに全てお任せ」の明示操作時のみ（mode で判定）。
  * - AI生成後の16:9は、マスク付き編集で左右背景もAI生成する。
  * - APIキー・Authorization・画像base64本体は絶対にログへ出さない。
+ * - スタッフ Basic 認証（proxy.ts と同じチェック）・IP単位の簡易レート制限・入力サイズ制限を行う。
  */
 
 import {
@@ -40,6 +41,8 @@ import type {
   IeiPhotoSmileLevel,
   IeiPhotoTeethVisibility,
 } from "@/lib/iei-photo/types";
+import { checkStaffBasicAuth } from "@/lib/security/basic-auth";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 // 画像生成は時間がかかるため、関数の上限を最大（300秒）にする。
 export const maxDuration = 300;
@@ -89,6 +92,13 @@ const VALID_TEETH_VISIBILITY: IeiPhotoTeethVisibility[] = [
   "clear",
 ];
 const VALID_TARGETS = ["portrait", "wide"] as const;
+
+// 入力制限（コスト・負荷の濫用防止）。
+const MAX_PROMPT_CHARS = 1000;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+// 簡易レート制限: 1 IP あたり 10 分で 30 回まで（16:9 再試行を含む想定）。
+const RATE_LIMIT = { name: "iei-photo-ai-image", limit: 30, windowMs: 10 * 60_000 };
 type IeiPhotoAiTarget = (typeof VALID_TARGETS)[number];
 
 type JsonErrorOptions = {
@@ -157,7 +167,26 @@ function readOption<T extends string>(
     : defaultValue;
 }
 
+/** 画像ファイルの MIME とサイズを検証する。問題なければ null。 */
+function validateImageFile(file: File, label: string): string | null {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return `${label}の形式が不正です（JPEG / PNG / WebP のみ対応）。`;
+  }
+  if (file.size === 0) {
+    return `${label}が空です。`;
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return `${label}のサイズが大きすぎます（10MB以下にしてください）。`;
+  }
+  return null;
+}
+
 export async function POST(request: Request): Promise<Response> {
+  const denied = checkStaffBasicAuth(request);
+  if (denied) return denied;
+  const limited = checkRateLimit(request, RATE_LIMIT);
+  if (limited) return limited;
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return jsonError(
@@ -178,6 +207,10 @@ export async function POST(request: Request): Promise<Response> {
   if (!(image instanceof File)) {
     return jsonError("画像ファイル（image）が見つかりません。", 400);
   }
+  const imageError = validateImageFile(image, "画像ファイル（image）");
+  if (imageError) {
+    return jsonError(imageError, imageError.includes("サイズ") ? 413 : 400);
+  }
 
   const targetRaw = String(form.get("target") ?? "portrait");
   const target = VALID_TARGETS.includes(targetRaw as IeiPhotoAiTarget)
@@ -186,6 +219,12 @@ export async function POST(request: Request): Promise<Response> {
   const mask = form.get("mask");
   if (target === "wide" && !(mask instanceof File)) {
     return jsonError("16:9生成用のマスク画像（mask）が見つかりません。", 400);
+  }
+  if (target === "wide" && mask instanceof File) {
+    const maskError = validateImageFile(mask, "マスク画像（mask）");
+    if (maskError) {
+      return jsonError(maskError, maskError.includes("サイズ") ? 413 : 400);
+    }
   }
 
   const modeRaw = String(form.get("mode") ?? "");
@@ -231,6 +270,12 @@ export async function POST(request: Request): Promise<Response> {
   const extraPromptRaw = form.get("prompt");
   const extraPrompt =
     typeof extraPromptRaw === "string" ? extraPromptRaw : undefined;
+  if (extraPrompt && extraPrompt.length > MAX_PROMPT_CHARS) {
+    return jsonError(
+      `追加指示（prompt）は${MAX_PROMPT_CHARS}文字以内にしてください。`,
+      400,
+    );
+  }
 
   const prompt =
     target === "wide"

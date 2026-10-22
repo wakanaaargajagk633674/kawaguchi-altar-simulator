@@ -18,12 +18,22 @@ import type {
   GenerateNarrationError,
   GenerateNarrationResponse,
 } from "@/lib/funeral-script/types";
+import { checkStaffBasicAuth } from "@/lib/security/basic-auth";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 // 推論モデル（gpt-5 系）は本文生成に時間がかかるため、関数の上限を延長する。
 export const maxDuration = 120;
 
 const DEFAULT_TEXT_MODEL = "gpt-5.5";
+// リクエスト本文の上限（文字数）。入力フォーム＋台本セクションとして十分な大きさ。
+const MAX_REQUEST_CHARS = 100_000;
+// 簡易レート制限: 1 IP あたり 10 分で 30 回まで。
+const RATE_LIMIT = {
+  name: "funeral-script-narration",
+  limit: 30,
+  windowMs: 10 * 60_000,
+};
 const MAX_BODY_CHARS = 1200;
 const GENERIC_FAIL =
   "AI生成に失敗しました。固定テンプレートの台本はそのまま利用できます。";
@@ -38,6 +48,11 @@ function errorResponse(
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const denied = checkStaffBasicAuth(request);
+  if (denied) return denied;
+  const limited = checkRateLimit(request, RATE_LIMIT);
+  if (limited) return limited;
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return errorResponse(
@@ -50,7 +65,14 @@ export async function POST(request: Request): Promise<Response> {
   // ---- リクエスト解析 ----
   let payload: unknown;
   try {
-    payload = await request.json();
+    const text = await request.text();
+    if (text.length > MAX_REQUEST_CHARS) {
+      return errorResponse(
+        "入力内容が長すぎます。エピソード等を短くして再試行してください。",
+        413,
+      );
+    }
+    payload = JSON.parse(text);
   } catch {
     return errorResponse("リクエストの解析に失敗しました。", 400);
   }
