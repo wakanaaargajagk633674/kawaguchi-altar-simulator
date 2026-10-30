@@ -608,7 +608,7 @@ export default function FuneralScriptPage() {
               href="/"
               className="shrink-0 rounded-md border border-white/20 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/10"
             >
-              ← 祭壇シミュレーターへ
+              ← 見積もりシミュレーターへ
             </Link>
           </div>
           <div className="border-t border-white/10 bg-slate-950/40 px-5 py-3">
@@ -711,7 +711,7 @@ export default function FuneralScriptPage() {
                 href="/"
                 className="mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-slate-200 transition hover:bg-white/10"
               >
-                ← 祭壇シミュレーターへ
+                ← 見積もりシミュレーターへ
               </Link>
             </div>
           </aside>

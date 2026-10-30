@@ -1049,7 +1049,7 @@ export default function Simulator() {
     try {
       await createPdfFromElement(
         proposalRef.current,
-        `川口典礼_祭壇シミュレーター_概算見積_${safePdfName(
+        `川口典礼_見積もりシミュレーター_概算見積_${safePdfName(
           trimmedCustomerName,
         )}.pdf`,
       );
@@ -1074,7 +1074,7 @@ export default function Simulator() {
             <h1 className="mt-2 max-w-full text-3xl font-semibold leading-tight tracking-normal text-slate-950 sm:text-4xl lg:text-5xl">
               <span className="block sm:inline">川口典礼</span>
               <span className="block sm:inline sm:ml-3">
-                祭壇シミュレーター
+                見積もりシミュレーター
               </span>
             </h1>
             <p className="mt-3 max-w-full text-base leading-7 text-slate-700 [overflow-wrap:anywhere] sm:text-lg">
