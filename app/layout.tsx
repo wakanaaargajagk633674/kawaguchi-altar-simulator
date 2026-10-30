@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "川口典礼 祭壇シミュレーター",
+  title: "川口典礼 見積もりシミュレーター",
   description:
     "プラン・ランク・祭壇・棺・骨壺・料理・安置日数などを選びながら概算費用を確認できるシミュレーターです。",
 };

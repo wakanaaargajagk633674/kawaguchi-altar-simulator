@@ -360,7 +360,7 @@ export default function ProposalDocument({
           <div className="mt-2 flex items-end justify-between gap-8">
             <div>
               <h1 className="text-3xl font-semibold tracking-normal">
-                川口典礼 祭壇シミュレーター 概算見積
+                川口典礼 見積もりシミュレーター 概算見積
               </h1>
               <p className="mt-2 text-sm" style={{ color: pdfColors.muted }}>
                 完成イメージ確認用
